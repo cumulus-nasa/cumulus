@@ -1041,3 +1041,48 @@ export const moveObject = async (
   });
   await deleteS3Object(params.sourceBucket, params.sourceKey);
 };
+
+/**
+ * List directories of an S3 path
+ * listObjectsV2 is limited to 1,000 results per call.  This function continues
+ * listing objects until there are no more to be fetched.
+ *
+ * The passed params must be compatible with the listObjectsV2 call.
+ *
+ * https://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#listObjectsV2-property
+ *
+ * @param {Object} params - params for the s3.listObjectsV2 call
+ * @returns {Promise<Array>} resolves to an array of objects corresponding to
+ *   the Contents property of the listObjectsV2 response
+ *
+ * @static
+ */
+export const listS3Directories = async (
+  params: AWS.S3.ListObjectsV2Request
+): ListS3ObjectsV2Result => {
+  const s3params = {
+    ...params,
+    Delimiter: '/',
+  };
+  let listObjectsResponse = <ListObjectsV2Output>(
+    await s3().listObjectsV2(s3params).promise()
+  );
+
+  let discoveredObjects = listObjectsResponse.Contents;
+
+  // Keep listing more objects from S3 until we have all of them
+  while (listObjectsResponse.IsTruncated) {
+    // eslint-disable-next-line no-await-in-loop
+    listObjectsResponse = <ListObjectsV2Output>(await s3().listObjectsV2(
+      // Update the params with a Continuation Token
+      {
+
+        ...params,
+        ContinuationToken: listObjectsResponse.NextContinuationToken,
+      }
+    ).promise());
+    discoveredObjects = discoveredObjects.concat(listObjectsResponse.Contents);
+  }
+
+  return discoveredObjects;
+};
