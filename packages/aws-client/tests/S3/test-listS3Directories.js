@@ -18,10 +18,10 @@ test.serial('listS3Directories() returns a NoSuchBucket code if the bucket does 
 });
 
 test.serial('listS3Directories() returns directories in a given path if bucket is specified', async (t) => {
-  const prefix = cryptoRandomString({ length: 5 });
+  const stackName = cryptoRandomString({ length: 5 });
   const generateKeys = (key) => `${key}-${cryptoRandomString({ length: 5 })}`;
 
-  const sourceBucket = `${prefix}-${cryptoRandomString({ length: 5 })}`;
+  const sourceBucket = `${stackName}-${cryptoRandomString({ length: 5 })}`;
   const firstKey = generateKeys('key1');
   const secondKey = generateKeys('key2');
 
@@ -65,10 +65,10 @@ test.serial('listS3Directories() returns directories in a given path if bucket i
 });
 
 test.serial('listS3Directories() returns directories in a given path if bucket and prefix is specified', async (t) => {
-  const prefix = cryptoRandomString({ length: 5 });
+  const stackName = cryptoRandomString({ length: 5 });
   const generateKeys = (key) => `${key}-${cryptoRandomString({ length: 5 })}`;
 
-  const sourceBucket = `${prefix}-${cryptoRandomString({ length: 5 })}`;
+  const sourceBucket = `${stackName}-${cryptoRandomString({ length: 5 })}`;
   const firstKey = generateKeys('key1');
   const secondKey = generateKeys('key2');
 
