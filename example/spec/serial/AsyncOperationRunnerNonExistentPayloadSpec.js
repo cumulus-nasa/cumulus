@@ -2,21 +2,19 @@
 
 const get = require('lodash/get');
 const uuidv4 = require('uuid/v4');
-const { deleteAsyncOperation } = require('@cumulus/api-client/asyncOperations');
+const { createAsyncOperation, deleteAsyncOperation } = require('@cumulus/api-client/asyncOperations');
 const { ecs } = require('@cumulus/aws-client/services');
 const { randomString } = require('@cumulus/common/test-utils');
 const {
   getClusterArn,
   waitForAsyncOperationStatus,
 } = require('@cumulus/integration-tests');
-const { AsyncOperation } = require('@cumulus/api/models');
 const { findAsyncOperationTaskDefinitionForDeployment } = require('../helpers/ecsHelpers');
 const { loadConfig } = require('../helpers/testUtils');
 
 describe('The AsyncOperation task runner with a non-existent payload', () => {
   let asyncOperation;
   let asyncOperationId;
-  let asyncOperationModel;
   let asyncOperationsTableName;
   let asyncOperationTaskDefinition;
   let beforeAllFailed = false;
@@ -33,12 +31,6 @@ describe('The AsyncOperation task runner with a non-existent payload', () => {
       asyncOperationsTableName = `${config.stackName}-AsyncOperationsTable`;
       successFunctionName = `${config.stackName}-AsyncOperationSuccess`;
 
-      asyncOperationModel = new AsyncOperation({
-        stackName: config.stackName,
-        systemBucket: config.bucket,
-        tableName: asyncOperationsTableName,
-      });
-
       // Find the ARN of the cluster
       cluster = await getClusterArn(config.stackName);
 
@@ -47,13 +39,15 @@ describe('The AsyncOperation task runner with a non-existent payload', () => {
 
       asyncOperationId = uuidv4();
 
-      await asyncOperationModel.create({
+      const asyncOperationObject = {
         id: asyncOperationId,
         taskArn: randomString(),
         description: 'Some description',
         operationType: 'ES Index',
         status: 'RUNNING',
-      });
+      };
+
+      await createAsyncOperation({ prefix: config.stackName, asyncOperation: asyncOperationObject });
 
       payloadUrl = `s3://${config.bucket}/${randomString()}`;
       const runTaskResponse = await ecs().runTask({

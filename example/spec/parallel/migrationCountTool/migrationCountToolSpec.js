@@ -75,10 +75,10 @@ describe('The AsyncOperation task runner executing a successful lambda function'
       expect(
         Object.keys(parsedOutput)
       ).toEqual([
+        's3Uri',
         'collectionsNotMapped',
         'records_in_dynamo_not_in_postgres',
         'pdr_granule_and_execution_records_not_in_postgres_by_collection',
-        's3Uri',
       ]);
       expect(
         () => Object.keys(parsedOutput.records_in_dynamo_not_in_postgres).forEach((k) => {

@@ -56,7 +56,10 @@ export {
   PostgresFileRecord,
 } from './types/file';
 
-export { translateApiAsyncOperationToPostgresAsyncOperation } from './translate/async_operations';
+export {
+  translateApiAsyncOperationToPostgresAsyncOperation,
+  translatePostgresAsyncOperationToApiAsyncOperation,
+} from './translate/async_operations';
 export {
   translateApiFiletoPostgresFile,
 } from './translate/file';

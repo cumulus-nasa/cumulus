@@ -1,3 +1,4 @@
+import { ApiAsyncOperation } from '@cumulus/types/api/async_operations';
 import { invokeApi } from './cumulusApiClient';
 import { InvokeApiFunction, ApiGatewayLambdaHttpProxyResponse } from './types';
 
@@ -85,6 +86,36 @@ export const listAsyncOperations = async (params: {
       resource: '/{proxy+}',
       path: '/asyncOperations',
       queryStringParameters: query,
+    },
+  });
+};
+
+/**
+ * Create an async operation via the API
+ * POST /asyncOperations
+ *
+ * @param {Object} params                  - params
+ * @param {string} params.prefix           - the prefix configured for the stack
+ * @param {Object} params.asyncOperation   - asyncOperation object
+ * @param {Function} params.callback       - function to invoke the api lambda
+ *                                           that takes a prefix / user payload
+ * @returns {Promise<Object>}              - promise that resolves to the output of the callback
+ */
+export const createAsyncOperation = async (params: {
+  prefix: string,
+  asyncOperation: ApiAsyncOperation,
+  callback?: InvokeApiFunction
+}): Promise<ApiGatewayLambdaHttpProxyResponse> => {
+  const { prefix, asyncOperation, callback = invokeApi } = params;
+
+  return await callback({
+    prefix,
+    payload: {
+      httpMethod: 'POST',
+      resource: '/{proxy+}',
+      headers: { 'Content-Type': 'application/json' },
+      path: '/asyncOperations',
+      body: JSON.stringify(asyncOperation),
     },
   });
 };
