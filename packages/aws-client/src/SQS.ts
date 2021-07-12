@@ -16,6 +16,8 @@ export interface SQSMessage extends AWS.SQS.Message {
   ReceiptHandle: string
 }
 
+export const getQueueNameFromUrl = (queueUrl: string) => queueUrl.split('/').pop();
+
 export const getQueueUrl = (sourceArn: string, queueName: string) => {
   const arnParts = sourceArn.split(':');
   return `https://sqs.${arnParts[3]}.amazonaws.com/${arnParts[4]}/${queueName}`;
@@ -165,7 +167,7 @@ export const deleteSQSMessage = improveStackTrace(
  *                               if the queue exists
  */
 export const sqsQueueExists = async (queue: string) => {
-  const QueueName = queue.split('/').pop();
+  const QueueName = getQueueNameFromUrl(queue);
 
   if (!QueueName) {
     throw new Error(`Unable to determine QueueName from ${queue}`);

@@ -79,7 +79,7 @@ async function updateSqsQueue(event) {
     logger.debug(`remove message ${receiptHandle} from queue ${queueUrl}`);
     await Promise.all([
       deleteSQSMessage(queueUrl, receiptHandle),
-      deleteArchivedMessageFromS3(messageId),
+      deleteArchivedMessageFromS3(messageId, queueUrl),
     ]);
   }
 

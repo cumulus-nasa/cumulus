@@ -4,6 +4,7 @@ const cryptoRandomString = require('crypto-random-string');
 const awsServices = require('../services');
 const {
   createQueue,
+  getQueueNameFromUrl,
   parseSQSMessageBody,
   sqsQueueExists,
 } = require('../SQS');
@@ -25,4 +26,11 @@ test('sqsQueueExists detects if the queue does not exist or is not accessible', 
   t.true(await sqsQueueExists(queueName));
   t.false(await sqsQueueExists(randomString()));
   await awsServices.sqs().deleteQueue({ QueueUrl: queueUrl }).promise();
+});
+
+test('getQueueNameFromUrl extracts queue name from a queue URL', (t) => {
+  const queueName = 'MyQueue';
+  const queueUrl = `https://sqs.us-east-2.amazonaws.com/123456789012/${queueName}`;
+  const extractedName = getQueueNameFromUrl(queueUrl);
+  t.is(extractedName, queueName);
 });
