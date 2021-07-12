@@ -6,9 +6,12 @@ const { Consumer } = require('@cumulus/ingest/consumer');
 const { sqs } = require('@cumulus/aws-client/services');
 const { sqsQueueExists } = require('@cumulus/aws-client/SQS');
 const { archiveSqsMessageToS3 } = require('@cumulus/ingest/sqs');
+const {
+  getKnexClient,
+  RulePgModel,
+} = require('@cumulus/db');
 
 const rulesHelpers = require('../lib/rulesHelpers');
-const Rule = require('../models/rules');
 
 /**
  * Looks up enabled 'sqs'-type rules, and processes the messages from
@@ -16,18 +19,22 @@ const Rule = require('../models/rules');
  *
  * @param {Object} event - lambda input message
  * @param {Function} dispatchFn - dispatch function
+ * @param {Object} knex - knex client
  * @returns {[Promises]} Array of promises. Each promise is resolved when
  * messages from SQS queue are processed
  */
-async function processQueues(event, dispatchFn) {
-  const rulesModel = new Rule();
+async function processQueues(event, dispatchFn, knex = getKnexClient()) {
+  const rulePgModel = new RulePgModel();
   let rules;
 
   try {
-    rules = await rulesModel.queryRules({
-      type: 'sqs',
-      state: 'ENABLED',
-    });
+    rules = await rulePgModel.search(
+      knex,
+      {
+        type: 'sqs',
+        enabled: true,
+      }
+    );
   } catch (error) {
     log.error(error);
   }
@@ -129,8 +136,8 @@ async function dispatch(queueUrl, message) {
  * @returns {Promise<undefined>} Success message or error
  * @throws {Error}
  */
-async function handler(event) {
-  return await processQueues(event, dispatch);
+async function handler(event, knex) {
+  return await processQueues(event, dispatch, knex);
 }
 
 module.exports = {

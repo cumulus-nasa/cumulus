@@ -4,7 +4,6 @@ const replace = require('lodash/replace');
 const { getJsonS3Object } = require('@cumulus/aws-client/S3');
 const { LambdaStep } = require('@cumulus/integration-tests/sfnStep');
 const { getWorkflowFileKey } = require('@cumulus/common/workflows');
-const { Rule } = require('@cumulus/api/models');
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 9 * 60 * 1000;
 
@@ -20,6 +19,7 @@ const {
 } = require('@cumulus/integration-tests');
 const { randomString } = require('@cumulus/common/test-utils');
 
+const { updateRule } = require('@cumulus/api-client/rules');
 const { deleteExecution } = require('@cumulus/api-client/executions');
 
 const {
@@ -126,8 +126,11 @@ describe('When adding multiple rules that share a kinesis event stream', () => {
       await tryCatchExit(cleanUp, async () => {
         // Disable rule
         console.log(`Disabling rule ${rules[1].name}`);
-        const r = new Rule();
-        await r.update(rules[1], { state: 'DISABLED' });
+        await updateRule({
+          prefix: testConfig.stackName,
+          ruleName: rules[1].name,
+          updateParams: { state: 'DISABLED' },
+        });
 
         const record = {
           provider: `SWOT_PODAAC${testSuffix}`,

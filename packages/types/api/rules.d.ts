@@ -9,6 +9,12 @@ export interface Rule {
   value?: string,
 }
 
+export interface RuleMeta {
+  retries?: number,
+  visibility?: number,
+  [key: string]: unknown
+}
+
 export interface PartialRuleRecord {
   name?: string,
   rule?: Rule,
@@ -18,14 +24,9 @@ export interface PartialRuleRecord {
     name: string,
     version: string
   },
-  meta?: {
-    retries?: number,
-    visibility?: number,
-    [key: string]: unknown
-  },
+  meta?: RuleMeta,
   payload?: unknown,
   provider?: string,
-  queueName?: string,
   executionNamePrefix?: string,
   queueUrl?: string,
   tags?: string[],

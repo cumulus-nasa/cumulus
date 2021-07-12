@@ -1,7 +1,9 @@
+import { RuleType, RuleMeta } from '@cumulus/types/api/rules';
+
 export interface PostgresRule {
   name: string,
   workflow: string,
-  type: string,
+  type: RuleType,
   enabled: boolean,
   collection_cumulus_id?: number,
   provider_cumulus_id?: number,
@@ -10,7 +12,7 @@ export interface PostgresRule {
   arn?: string,
   log_event_arn?: string,
   payload?: object,
-  meta?: object,
+  meta?: RuleMeta,
   tags?: string,
   queue_url?: string,
   created_at: Date | undefined,

@@ -5,7 +5,11 @@ const get = require('lodash/get');
 const set = require('lodash/set');
 const { sns } = require('@cumulus/aws-client/services');
 const log = require('@cumulus/common/log');
-const Rule = require('../models/rules');
+const {
+  getKnexClient,
+  CollectionPgModel,
+  RulePgModel,
+} = require('@cumulus/db');
 const kinesisSchema = require('./kinesis-consumer-event-schema.json');
 const { lookupCollectionInEvent, queueMessageForRule } = require('../lib/rulesHelpers');
 
@@ -141,9 +145,21 @@ function processRecord(record, fromSNS) {
     }
   }
 
-  const rulesModel = new Rule();
+  const knex = getKnexClient();
+  const rulePgModel = new RulePgModel();
+  const collectionPgModel = new CollectionPgModel();
   return validateMessage(eventObject, originalMessageSource, validationSchema)
-    .then(() => rulesModel.queryRules(ruleParam))
+    .then(() => ((ruleParam.name && ruleParam.version) ?
+      collectionPgModel.get(knex, { name: ruleParam.name, version: ruleParam.version }) :
+      undefined))
+    .then((pgCollection) => rulePgModel.search(
+      knex,
+      {
+        collection_cumulus_id: pgCollection.cumulus_id,
+        type: ruleParam.type,
+        value: ruleParam.sourceArn,
+      }
+    ))
     .then((rules) => Promise.all(rules.map((rule) => {
       if (originalMessageSource === 'sns') set(rule, 'meta.snsSourceArn', ruleParam.sourceArn);
       return queueMessageForRule(rule, eventObject);

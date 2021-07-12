@@ -15,6 +15,7 @@ const {
   ProviderPgModel,
   translateApiCollectionToPostgresCollection,
   translateApiProviderToPostgresProvider,
+  translateApiRuleToPostgresRule,
 } = require('@cumulus/db');
 const S3 = require('@cumulus/aws-client/S3');
 const { Search } = require('@cumulus/es-client/search');
@@ -66,8 +67,10 @@ const testRule = fakeRuleFactoryV2({
     value: 'value',
   },
   state: 'ENABLED',
-  queueUrl: 'queue_url',
+  queueUrl: 'https://sqs.us-west-2.amazonaws.com/123456789012/queue_url',
 });
+delete testRule.collection;
+delete testRule.provider;
 
 const dynamoRuleOmitList = ['createdAt', 'updatedAt', 'state', 'provider', 'collection', 'rule', 'queueUrl', 'executionNamePrefix'];
 
@@ -112,6 +115,8 @@ test.before(async (t) => {
 
   const ruleRecord = await ruleModel.create(testRule);
   await indexer.indexRule(esClient, ruleRecord, t.context.esIndex);
+  t.context.testPgRule = await translateApiRuleToPostgresRule(ruleRecord, knex);
+  t.context.rulePgModel.create(knex, t.context.testPgRule);
 
   const username = randomString();
   await setAuthorizedOAuthUsers([username]);
@@ -263,8 +268,12 @@ test('GET gets a rule', async (t) => {
     .set('Authorization', `Bearer ${jwtAuthToken}`)
     .expect(200);
 
-  const { name } = response.body;
-  t.is(name, testRule.name);
+  const expectedRule = {
+    ...testRule,
+    updatedAt: response.body.updatedAt,
+    createdAt: response.body.createdAt,
+  };
+  t.deepEqual(response.body, expectedRule);
 });
 
 test('When calling the API endpoint to delete an existing rule it does not return the deleted rule', async (t) => {

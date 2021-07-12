@@ -8,6 +8,7 @@ const {
   getKnexClient,
   RulePgModel,
   translateApiRuleToPostgresRule,
+  translatePostgresRuleToApiRule,
 } = require('@cumulus/db');
 const { Search } = require('@cumulus/es-client/search');
 const { indexRule, deleteRule } = require('@cumulus/es-client/indexer');
@@ -44,10 +45,13 @@ async function list(req, res) {
 async function get(req, res) {
   const name = req.params.name;
 
-  const model = new models.Rule();
+  const {
+    rulePgModel = new RulePgModel(),
+    knex = await getKnexClient(),
+  } = req.testContext || {};
   try {
-    const result = await model.get({ name });
-    delete result.password;
+    const rule = await rulePgModel.get(knex, { name });
+    const result = await translatePostgresRuleToApiRule(rule);
     return res.send(result);
   } catch (error) {
     if (error instanceof RecordDoesNotExist) {

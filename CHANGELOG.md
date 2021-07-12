@@ -55,6 +55,9 @@ database via the API
     - Added helpers to `@cumulus/es-client/indexer`:
       - `deleteAsyncOperation` to delete async operation records from Elasticsearch
       - `updateAsyncOperation` to update an async operation record in Elasticsearch
+  - **CUMULUS-2304**
+    - Updated API rule GET endpoint to read individual rule records from
+      PostgreSQL database instead of DynamoDB
   - **CUMULUS-2306**
     - Updated API execution GET endpoint to read individual execution records
       from PostgreSQL database instead of DynamoDB
