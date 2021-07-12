@@ -1043,7 +1043,7 @@ export const moveObject = async (
 };
 
 /**
- * List directories of an S3 path
+ * List keys of an S3 path
  *
  * @param {Object} params - params for the s3.listObjectsV2 call
  * @returns {Promise<Array>} resolves to an array of objects corresponding to
@@ -1051,7 +1051,7 @@ export const moveObject = async (
  *
  * @static
  */
-export const listS3Directories = async (
+export const listS3Keys = async (
   params: AWS.S3.ListObjectsV2Request
 ): ListS3ObjectsV2Result => {
   const s3params = {
