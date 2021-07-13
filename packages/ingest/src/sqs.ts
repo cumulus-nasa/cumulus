@@ -7,6 +7,11 @@ import { s3PutObject, deleteS3Object } from '@cumulus/aws-client/S3';
 
 const logger = new Logger({ sender: '@cumulus/ingest/sqs' });
 
+export function getS3PrefixForArchivedMessage(stackName:string, queueName: string) {
+  const prefix = `${stackName}/archived-incoming-messages/${queueName}`;
+  return prefix;
+}
+
 // eslint-disable-next-line max-len
 export function getS3KeyForArchivedMessage(stackName: string, messageId: string, queueName: string) {
   const key = `${stackName}/archived-incoming-messages/${queueName}/${messageId}`;

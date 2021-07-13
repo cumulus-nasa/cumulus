@@ -50,5 +50,8 @@ bt-tf:
 jtran-int-tf:
   bucket: jtran-int-tf-internal
 
+jtran-tf:
+  bucket: jtran-internal
+
 np:
   bucket: npauzenga-internal
