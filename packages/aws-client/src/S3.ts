@@ -1041,24 +1041,3 @@ export const moveObject = async (
   });
   await deleteS3Object(params.sourceBucket, params.sourceKey);
 };
-
-/**
- * List keys of an S3 path
- *
- * @param {Object} params - params for the s3.listObjectsV2 call
- * @returns {Promise<Array>} resolves to an array of S3 keys for the given path
- *
- * @static
- */
-export const listS3Keys = async (
-  params: AWS.S3.ListObjectsV2Request
-): Promise<Array<string>> => {
-  const s3params = {
-    ...params,
-    Delimiter: '/',
-  };
-  const objects = await listS3ObjectsV2(s3params);
-  const keys : Array<string> = [];
-  objects.map((o) => keys.push(o.Key));
-  return keys;
-};

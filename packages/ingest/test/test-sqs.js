@@ -41,9 +41,10 @@ async function createSqsQueues(
   return { queueName, queueUrl };
 }
 
-test.before(async () => {
+test.before(async (t) => {
   process.env.system_bucket = randomString();
   process.env.stackName = randomString();
+  t.context.stackName = process.env.stackName;
   await createBucket(process.env.system_bucket);
 });
 
@@ -52,6 +53,7 @@ test.after.always(async () => {
 });
 
 test.serial('archiveSqsMessageToS3 archives an SQS message', async (t) => {
+  const { stackName } = t.context;
   const queues = await createSqsQueues(randomString());
   const body = { testdata: randomString() };
   const message = await SQS.sendSQSMessage(
@@ -62,7 +64,7 @@ test.serial('archiveSqsMessageToS3 archives an SQS message', async (t) => {
     queues.queueUrl,
     { numOfMessages: 1, visibilityTimeout: 5 }
   );
-  const key = getS3KeyForArchivedMessage(process.env.stackName, message.MessageId, queues.queueName);
+  const key = getS3KeyForArchivedMessage(stackName, message.MessageId, queues.queueName);
 
   await Promise.all(messages.map((m) => archiveSqsMessageToS3(queues.queueUrl, m)));
 
