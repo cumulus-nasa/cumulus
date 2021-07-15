@@ -80,6 +80,8 @@ the error object:
 - Added `params.pRetryOptions` parameter to
 `@cumulus/api-client/granules.deleteGranule` to control the retry
 behavior
+- Updated `processDeadLetterArchive` Lambda to return an object where `processed` is an array
+of the S3 keys for succesfully processed objects and `failed` is an array of S3 keys for objects that could not be processed
 
 ### Fixed
 

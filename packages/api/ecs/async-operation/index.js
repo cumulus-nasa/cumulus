@@ -197,7 +197,7 @@ const writeAsyncOperationToDynamoDb = async (params) => {
  * @returns {Promise} resolves when the item has been updated
  */
 const updateAsyncOperation = async (status, output, envOverride = {}) => {
-  logger.info(`Updating AsyncOperation ${JSON.stringify(status)} ${JSON.stringify(output)}`);
+  logger.info(`Updating AsyncOperation to ${JSON.stringify(status)} with output: ${JSON.stringify(output)}`);
   const actualOutput = isError(output) ? buildErrorOutput(output) : output;
   const dbOutput = actualOutput ? JSON.stringify(actualOutput) : undefined;
   const updatedTime = envOverride.updateTime || (Number(Date.now())).toString();
@@ -224,6 +224,8 @@ const updateAsyncOperation = async (status, output, envOverride = {}) => {
 async function runTask() {
   let lambdaInfo;
   let payload;
+
+  logger.debug('Running async operation %s', process.env.asyncOperationId);
 
   try {
     // Get some information about the lambda function that we'll be calling

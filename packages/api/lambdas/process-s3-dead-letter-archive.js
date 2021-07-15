@@ -29,6 +29,8 @@ async function processDeadLetterArchive({
 }) {
   let listObjectsResponse;
   let continuationToken;
+  let allSuccessKeys = [];
+  const allFailedKeys = [];
   /* eslint-disable no-await-in-loop */
   do {
     listObjectsResponse = await s3().listObjectsV2({
@@ -47,13 +49,18 @@ async function processDeadLetterArchive({
           return deadLetterObject.Key;
         } catch (error) {
           log.error(`Failed to write records from cumulusMessage for dead letter ${deadLetterObject.Key} due to '${error}'`);
+          allFailedKeys.push(deadLetterObject.Key);
           throw error;
         }
       }
     ));
-    const keysToDelete = promises.filter(
+
+    const successfullyProcessedKeys = promises.filter(
       (prom) => prom.status === 'fulfilled'
-    ).map((prom) => ({ Key: prom.value }));
+    ).map((prom) => prom.value);
+    allSuccessKeys = allSuccessKeys.concat(successfullyProcessedKeys);
+
+    const keysToDelete = successfullyProcessedKeys.map((key) => ({ Key: key }));
     if (keysToDelete.length > 0) {
       await s3().deleteObjects({
         Bucket: bucket,
@@ -64,6 +71,11 @@ async function processDeadLetterArchive({
     }
   } while (listObjectsResponse.IsTruncated);
   /* eslint-enable no-await-in-loop */
+  // Lambda run as an async operation must have a return
+  return {
+    processed: allSuccessKeys,
+    failed: allFailedKeys,
+  };
 }
 
 /**

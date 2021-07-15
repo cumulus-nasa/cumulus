@@ -28,11 +28,15 @@ test.beforeEach(async (t) => {
     fakeCumulusMessageFactory(),
   ];
   t.context.cumulusMessages = cumulusMessages;
-  await Promise.all(cumulusMessages.map((cumulusMessage) => {
-    const executionName = getMessageExecutionName(cumulusMessage);
+  t.context.messageKeys = [
+    `${t.context.path}${getMessageExecutionName(cumulusMessages[0])}.json`,
+    `${t.context.path}${getMessageExecutionName(cumulusMessages[1])}.json`,
+  ];
+  await Promise.all(cumulusMessages.map((cumulusMessage, index) => {
+    const key = t.context.messageKeys[index];
     return S3.putJsonS3Object(
       t.context.bucket,
-      `${t.context.path}${executionName}.json`,
+      key,
       cumulusMessage
     );
   }));
@@ -45,7 +49,7 @@ test.after(async (t) => {
 test('processDeadLetterArchive calls writeRecords for each dead letter Cumulus message', async (t) => {
   const writeRecordsFunctionSpy = sinon.spy();
   const { bucket, path } = t.context;
-  await processDeadLetterArchive({
+  const output = await processDeadLetterArchive({
     bucket,
     path,
     writeRecordsFunction: writeRecordsFunctionSpy,
@@ -60,6 +64,16 @@ test('processDeadLetterArchive calls writeRecords for each dead letter Cumulus m
     (argMsg) =>
       getMessageExecutionName(argMsg) === getMessageExecutionName(t.context.cumulusMessages[1])
   ).length, 1);
+  t.deepEqual(
+    {
+      success: output.processed.sort(),
+      failed: [],
+    },
+    {
+      success: t.context.messageKeys.sort(),
+      failed: [],
+    }
+  );
 });
 
 test('processDeadLetterArchive is able to handle processing multiple batches of dead letter records', async (t) => {
@@ -68,21 +82,34 @@ test('processDeadLetterArchive is able to handle processing multiple batches of 
   const writeRecordsFunctionSpy = sinon.spy();
 
   const numberOfDeadLetters = 40;
+  const keys = [];
   for (let i = 0; i < numberOfDeadLetters; i += 1) {
+    const key = `${path}${uuidv4()}.json`;
+    keys.push(key);
     // eslint-disable-next-line no-await-in-loop
     await S3.putJsonS3Object(
       bucket,
-      `${path}${uuidv4()}.json`,
+      key,
       {}
     );
   }
 
-  await processDeadLetterArchive({
+  const output = await processDeadLetterArchive({
     bucket,
     path,
     writeRecordsFunction: writeRecordsFunctionSpy,
     batchSize: 15,
   });
+  t.deepEqual(
+    {
+      success: output.processed.sort(),
+      failed: [],
+    },
+    {
+      success: keys.sort(),
+      failed: [],
+    }
+  );
   t.is(writeRecordsFunctionSpy.callCount, numberOfDeadLetters);
   const remainingDeadLetters = await S3.listS3ObjectsV2({ Bucket: bucket, Prefix: path });
   t.is(remainingDeadLetters.length, 0);
@@ -91,12 +118,13 @@ test('processDeadLetterArchive is able to handle processing multiple batches of 
 test('processDeadLetterArchive only deletes dead letters that process successfully', async (t) => {
   const { bucket, path } = t.context;
   const passingMessageExecutionName = getMessageExecutionName(t.context.cumulusMessages[1]);
+  const failingMessageKey = t.context.messageKeys[0];
   const writeRecordsErrorThrower = ({ cumulusMessage }) => {
     if (getMessageExecutionName(cumulusMessage) === passingMessageExecutionName) return;
     throw new Error('write failure');
   };
 
-  await processDeadLetterArchive({
+  const output = await processDeadLetterArchive({
     bucket,
     path,
     writeRecordsFunction: writeRecordsErrorThrower,
@@ -104,6 +132,7 @@ test('processDeadLetterArchive only deletes dead letters that process successful
 
   const remainingDeadLetters = await S3.listS3ObjectsV2({ Bucket: bucket, Prefix: path });
   t.is(remainingDeadLetters.length, 1);
+  t.deepEqual(output.failed, [failingMessageKey]);
 });
 
 test.serial('processDeadLetterArchive uses default values if no bucket and key are passed', async (t) => {

@@ -98,7 +98,7 @@ resource "aws_lambda_function" "process_dead_letter_archive" {
       PdrsTable       = var.dynamo_tables.pdrs.name
       dbHeartBeat     = var.rds_connection_heartbeat
       databaseCredentialSecretArn    = var.rds_user_access_secret_arn
-      RDS_DEPLOYMENT_CUMULUS_VERSION = "5.0.0"
+      RDS_DEPLOYMENT_CUMULUS_VERSION = "9.0.0"
     }
   }
 
