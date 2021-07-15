@@ -19,13 +19,15 @@ const getArchivedMessagesFromQueue = async (queueName) => {
     Bucket: bucket,
     Prefix: prefix,
   };
+  logger.debug(`Params for listS3Keys bucket: ${bucket}, prefix: ${prefix}`);
   const keys = await listS3Keys(params);
-  logger.debug(`Keys retrieved for ${queueName}: ${JSON.stringifiy(keys)}`);
+  logger.debug(`Keys retrieved for ${queueName}: ${JSON.stringify(keys)}`);
   const archivedMessages = [];
   keys.map(async (key) => {
-    archivedMessages.push(await getJsonS3Object(bucket, key.Key));
+    archivedMessages.push(await getJsonS3Object(bucket, key));
   });
 
+  logger.debug(`Archived messages length ${archivedMessages.length}`);
   return archivedMessages;
 };
 
@@ -40,6 +42,7 @@ async function replayArchivedMessages(event) {
       logger.debug(`Sending message to queue URL ${queueUrl}`);
       try {
         await sendSQSMessage(queueUrl, message);
+        logger.debug(`Successfully sent message to queue URL ${queueUrl}`);
         replayedMessages.push(message);
       } catch (error) {
         logger.error(`Could not send message to queue. Message: ${message}, Queue: ${queueUrl}`, error);

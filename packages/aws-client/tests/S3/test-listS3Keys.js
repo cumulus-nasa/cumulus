@@ -66,9 +66,9 @@ test.serial('listS3Keys() returns keys in a given path if bucket is specified', 
   // Ensure that only keys in top level are returned
   const keys = await S3.listS3Keys(params);
   t.is(keys.length, 3);
-  t.is(keys[0].Key, firstKey);
-  t.is(keys[1].Key, secondKey);
-  t.is(keys[2].Key, thirdKey);
+  t.is(keys[0], firstKey);
+  t.is(keys[1], secondKey);
+  t.is(keys[2], thirdKey);
 });
 
 test.serial('listS3Directories() returns keys in a given path if bucket and prefix is specified', async (t) => {
@@ -119,6 +119,6 @@ test.serial('listS3Directories() returns keys in a given path if bucket and pref
   };
   const keys = await S3.listS3Keys(params);
   t.is(keys.length, 2);
-  t.is(keys[0].Key, `${firstKey}/1/a`);
-  t.is(keys[1].Key, `${firstKey}/1/b`);
+  t.is(keys[0], `${firstKey}/1/a`);
+  t.is(keys[1], `${firstKey}/1/b`);
 });
