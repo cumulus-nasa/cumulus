@@ -20,6 +20,11 @@ period. Reserved concurrency can be configured with the `archive_api_reserved_co
 terraform variable on the Cumulus module and increased if you are seeing throttling erorrs.
 The default reserved concurrency value is 8.
 
+### Notable changes
+
+- `cmr_custom_host` variable for `cumulus` module can now be used to configure Cumulus to
+integrate with a custom CMR host name and protocol (e.g. `http://custom-cmr-host.com`)
+
 ### Added
 
 - Added user doc describing new features related to the Cumulus dead letter archive.
@@ -100,6 +105,8 @@ the error object:
 - Added `params.pRetryOptions` parameter to
 `@cumulus/api-client/granules.deleteGranule` to control the retry
 behavior
+- Updated `cmr_custom_host` variable to accept a full protocol and host name
+(e.g. `http://cmr-custom-host.com`), whereas it previously only accepted a host name
 - **CUMULUS-2463**
   - Increases the duration of allowed backoff times for a successful test from 0.5 sec to 1 sec.
 

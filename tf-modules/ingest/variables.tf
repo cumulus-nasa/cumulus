@@ -17,7 +17,7 @@ variable "cmr_environment" {
 }
 
 variable "cmr_custom_host" {
-  description = "Custom host to use for CMR requests"
+  description = "Custom protocol/host to use for CMR requests (e.g. http://cmr-host.com)"
   type        = string
   default     = null
 }
