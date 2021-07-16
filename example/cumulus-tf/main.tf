@@ -166,16 +166,18 @@ module "cumulus" {
   api_gateway_stage           = var.api_gateway_stage
   archive_api_reserved_concurrency = var.api_reserved_concurrency
 
-  # Thin Egress App settings
+  # Thin Egress App settings. Uncomment to use TEA.
   # must match stage_name variable for thin-egress-app module
-  tea_api_gateway_stage = local.tea_stage_name
-
-  tea_rest_api_id               = module.thin_egress_app.rest_api.id
-  tea_rest_api_root_resource_id = module.thin_egress_app.rest_api.root_resource_id
-  tea_internal_api_endpoint     = module.thin_egress_app.internal_api_endpoint
-  tea_external_api_endpoint     = module.thin_egress_app.api_endpoint
+  # tea_api_gateway_stage         = local.tea_stage_name
+  # tea_rest_api_id               = module.thin_egress_app.rest_api.id
+  # tea_rest_api_root_resource_id = module.thin_egress_app.rest_api.root_resource_id
+  # tea_internal_api_endpoint     = module.thin_egress_app.internal_api_endpoint
+  # tea_external_api_endpoint     = module.thin_egress_app.api_endpoint
 
   log_destination_arn = var.log_destination_arn
+
+  # Cumulus Distribution settings. Remove/comment if not using Cognito.
+  tea_external_api_endpoint = module.cumulus_distribution.api_uri
 
   # S3 credentials endpoint
   sts_credentials_lambda_function_arn = data.aws_lambda_function.sts_credentials.arn

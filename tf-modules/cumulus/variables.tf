@@ -125,11 +125,13 @@ variable "system_bucket" {
 variable "tea_external_api_endpoint" {
   description = "Thin Egress App external endpoint URL"
   type        = string
+  default     = null
 }
 
 variable "tea_internal_api_endpoint" {
   description = "Thin Egress App internal endpoint URL"
   type        = string
+  default     = null
 }
 
 variable "token_secret" {

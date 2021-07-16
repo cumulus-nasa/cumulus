@@ -6,17 +6,21 @@ output "archive_api_redirect_uri" {
   value = module.cumulus.archive_api_redirect_uri
 }
 
-output "distribution_url" {
+# TEA-Specific outputs
+
+output "tea_distribution_url" {
   value = module.thin_egress_app.api_endpoint
 }
 
-output "s3_credentials_redirect_uri" {
+output "tea_s3_credentials_redirect_uri" {
   value = module.cumulus.s3_credentials_redirect_uri
 }
 
-output "distribution_redirect_uri" {
+output "tea_distribution_redirect_uri" {
   value = module.thin_egress_app.urs_redirect_uri
 }
+
+# End TEA-Specific outputs.
 
 # Workflow reporting SQS queue and SNS topics
 
@@ -44,10 +48,10 @@ output "move_granules_task" {
   value = module.cumulus.move_granules_task
 }
 
-output "distribution_api_uri" {
+output "cumulus_distribution_api_uri" {
   value = module.cumulus_distribution.api_uri
 }
 
-output "distribution_api_redirect_uri" {
+output "cumulus_distribution_api_redirect_uri" {
   value = module.cumulus_distribution.api_redirect_uri
 }

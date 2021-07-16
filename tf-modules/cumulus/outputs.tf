@@ -1,19 +1,22 @@
 # API outputs
 
+# TEA-Specific outputs.
+
 output "distribution_bucket_map" {
-  value = module.distribution.distribution_bucket_map
+  value = var.tea_internal_api_endpoint != null ? module.distribution[0].distribution_bucket_map : null
 }
 
+output "s3_credentials_redirect_uri" {
+  value = var.tea_internal_api_endpoint != null ? module.distribution[0].s3_credentials_redirect_uri : null
+}
+
+# End TEA-Specific outputs.
 output "archive_api_uri" {
   value = module.archive.api_uri
 }
 
 output "archive_api_redirect_uri" {
   value = module.archive.api_redirect_uri
-}
-
-output "s3_credentials_redirect_uri" {
-  value = module.distribution.s3_credentials_redirect_uri
 }
 
 output "provider_kms_key_id" {

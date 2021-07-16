@@ -181,7 +181,7 @@ variable "cumulus_distribution_url" {
   description = "The url of cumulus distribution API Gateway endpoint"
 }
 
-variable "distribution_url" {
+variable "tea_distribution_url" {
   type    = string
   default = null
 }

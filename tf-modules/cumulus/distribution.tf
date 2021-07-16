@@ -1,4 +1,5 @@
 module "distribution" {
+  count = var.tea_internal_api_endpoint != null ? 1 : 0
   source = "../distribution"
 
   tea_api_gateway_stage         = var.tea_api_gateway_stage

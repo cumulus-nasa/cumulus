@@ -24,7 +24,7 @@ const s3Data = [
   '@cumulus/test-data/granules/MOD09GQ.A2016358.h13v04.006.2016360104606.hdf.met',
 ];
 
-describe('TEA Distribution API', () => {
+xdescribe('TEA Distribution API', () => {
   let fileKey;
   let protectedBucketName;
   let publicBucketName;
@@ -71,6 +71,7 @@ describe('TEA Distribution API', () => {
     ]);
   });
 
+  // These tests assume TEA is deployed. The default for example/cumulus-tf is Cumulus Distribution
   describe('handles requests for files over HTTPS', () => {
     let fileChecksum;
     let protectedFilePath;
