@@ -172,6 +172,7 @@ function fakePdrFactoryV2(params = {}) {
     provider: 'fakeProvider',
     status: 'completed',
     createdAt: Date.now(),
+    progress: 0,
   };
 
   return { ...pdr, ...params };

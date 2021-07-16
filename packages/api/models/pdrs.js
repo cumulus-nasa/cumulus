@@ -1,30 +1,12 @@
 'use strict';
 
-const { getCollectionIdFromMessage } = require('@cumulus/message/Collections');
 const {
   getMessageExecutionArn,
-  getExecutionUrlFromArn,
 } = require('@cumulus/message/Executions');
-const {
-  getMessagePdr,
-  getMessagePdrPANSent,
-  getMessagePdrPANMessage,
-  getMessagePdrStats,
-  getPdrPercentCompletion,
-} = require('@cumulus/message/PDRs');
-const {
-  getMessageProviderId,
-} = require('@cumulus/message/Providers');
-const {
-  getMetaStatus,
-  getMessageWorkflowStartTime,
-  getWorkflowDuration,
-} = require('@cumulus/message/workflows');
 const Logger = require('@cumulus/logger');
 const pvl = require('@cumulus/pvl');
 
 const Manager = require('./base');
-const { CumulusModelError } = require('./errors');
 const pdrSchema = require('./schemas').pdr;
 
 const logger = new Logger({ sender: '@cumulus/api/models/pdrs' });
@@ -67,68 +49,16 @@ class Pdr extends Manager {
   }
 
   /**
-   * Generate a PDR record.
+   * Try to store a PDR record.
    *
-   * @param {Object} message - A workflow execution message
-   * @param {number} [updatedAt] - Optional updated timestamp for record
-   * @returns {Object|undefined} - A PDR record, or null if `message.payload.pdr` is
-   *   not set
-   */
-  generatePdrRecord(message, updatedAt = Date.now()) {
-    const pdr = getMessagePdr(message);
-
-    if (!pdr) { // We got a message with no PDR (OK)
-      logger.info('No PDRs to process on the message');
-      return undefined;
-    }
-
-    if (!pdr.name) { // We got a message with a PDR but no name to identify it (Not OK)
-      throw new CumulusModelError(`Could not find name on PDR object ${JSON.stringify(pdr)}`);
-    }
-
-    const arn = getMessageExecutionArn(message);
-    const execution = getExecutionUrlFromArn(arn);
-
-    const collectionId = getCollectionIdFromMessage(message);
-    if (!collectionId) {
-      throw new CumulusModelError('meta.collection required to generate a PDR record');
-    }
-
-    const stats = getMessagePdrStats(message);
-    const progress = getPdrPercentCompletion(stats);
-    const now = Date.now();
-    const workflowStartTime = getMessageWorkflowStartTime(message);
-
-    const record = {
-      pdrName: pdr.name,
-      collectionId,
-      status: getMetaStatus(message),
-      provider: getMessageProviderId(message),
-      progress,
-      execution,
-      PANSent: getMessagePdrPANSent(message),
-      PANmessage: getMessagePdrPANMessage(message),
-      stats,
-      createdAt: getMessageWorkflowStartTime(message),
-      timestamp: now,
-      updatedAt,
-      duration: getWorkflowDuration(workflowStartTime, now),
-    };
-
-    this.constructor.recordIsValid(record, this.schema);
-    return record;
-  }
-
-  /**
-   * Try to update a PDR record from a cloudwatch event.
    * If the record already exists, only update if the execution is different (re-run case).
    *
-   * @param {Object} cumulusMessage - cumulus message object
-   * @param {number} [updatedAt] - Optional updated timestamp for record
+   * @param {Object} pdrRecord - PDR record
+   * @param {Object} cumulusMessage - Cumulus workflow message
    */
-  async storePdrFromCumulusMessage(cumulusMessage, updatedAt) {
-    const pdrRecord = this.generatePdrRecord(cumulusMessage, updatedAt);
+  async storePdr(pdrRecord, cumulusMessage) {
     if (!pdrRecord) return undefined;
+    this.constructor.recordIsValid(pdrRecord, this.schema);
 
     logger.info(`About to write PDR ${pdrRecord.pdrName} to DynamoDB`);
 

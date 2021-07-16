@@ -1,8 +1,15 @@
 'use strict';
 
+const pRetry = require('p-retry');
 const {
   PdrPgModel,
 } = require('@cumulus/db');
+const {
+  indexPdr,
+} = require('@cumulus/es-client/indexer');
+const {
+  Search,
+} = require('@cumulus/es-client/search');
 const {
   getMessagePdrName,
   messageHasPdr,
@@ -10,6 +17,7 @@ const {
   getMessagePdrPANSent,
   getMessagePdrPANMessage,
   getPdrPercentCompletion,
+  generatePdrApiRecordFromMessage,
 } = require('@cumulus/message/PDRs');
 const {
   getMetaStatus,
@@ -116,6 +124,32 @@ const writePdrViaTransaction = async ({
   return [pdrCumulusId];
 };
 
+const writePdrToDynamoAndEs = async (params) => {
+  const {
+    cumulusMessage,
+    pdrModel,
+    updatedAt = Date.now(),
+    esClient = await Search.es(),
+  } = params;
+  const pdrApiRecord = generatePdrApiRecordFromMessage(cumulusMessage, updatedAt);
+  try {
+    const dynamoResponse = await pdrModel.storePdr(pdrApiRecord, cumulusMessage);
+    if (dynamoResponse) {
+      await indexPdr(esClient, pdrApiRecord, process.env.ES_INDEX);
+    }
+  } catch (error) {
+    // On error, delete the Dynamo record to ensure that all systems
+    // stay in sync
+    await pRetry(
+      pdrModel.delete({ pdrName: pdrApiRecord.pdrName }),
+      {
+        retries: 3,
+      }
+    );
+    throw error;
+  }
+};
+
 const writePdr = async ({
   cumulusMessage,
   collectionCumulusId,
@@ -124,6 +158,7 @@ const writePdr = async ({
   knex,
   pdrModel = new Pdr(),
   updatedAt = Date.now(),
+  esClient,
 }) => {
   // If there is no PDR in the message, then there's nothing to do here, which is fine
   if (!messageHasPdr(cumulusMessage)) {
@@ -145,7 +180,12 @@ const writePdr = async ({
       executionCumulusId,
       updatedAt,
     });
-    await pdrModel.storePdrFromCumulusMessage(cumulusMessage, updatedAt);
+    await writePdrToDynamoAndEs({
+      cumulusMessage,
+      pdrModel,
+      updatedAt,
+      esClient,
+    });
     // eslint-disable-next-line camelcase
     return cumulus_id;
   });
@@ -156,4 +196,5 @@ module.exports = {
   getPdrCumulusIdFromQueryResultOrLookup,
   writePdrViaTransaction,
   writePdr,
+  writePdrToDynamoAndEs,
 };
