@@ -16,6 +16,7 @@ export const up = async (knex: Knex): Promise<void> =>
     table
       .enum('operation_type',
         [
+          'Archived S3 Messages Replay',
           'ES Index',
           'Bulk Granules',
           'Bulk Granule Reingest',

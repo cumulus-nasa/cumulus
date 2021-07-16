@@ -71,6 +71,7 @@ locals {
       protected_buckets                = join(",", local.protected_buckets)
       provider_kms_key_id              = aws_kms_key.provider_kms_key.key_id
       public_buckets                   = join(",", local.public_buckets)
+      ReplayArchivedS3MessagesLambda   = aws_lambda_function.replay_archived_s3_messages.arn
       stackName                        = var.prefix
       system_bucket                    = var.system_bucket
       TOKEN_REDIRECT_ENDPOINT          = local.api_redirect_uri

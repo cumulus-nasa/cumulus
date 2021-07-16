@@ -38,12 +38,13 @@ async function createSqsQueues(
   };
 
   const { QueueUrl: queueUrl } = await awsServices.sqs().createQueue(queueParms).promise();
-  return { queueUrl };
+  return { queueName, queueUrl };
 }
 
-test.before(async () => {
+test.before(async (t) => {
   process.env.system_bucket = randomString();
   process.env.stackName = randomString();
+  t.context.stackName = process.env.stackName;
   await createBucket(process.env.system_bucket);
 });
 
@@ -52,8 +53,8 @@ test.after.always(async () => {
 });
 
 test.serial('archiveSqsMessageToS3 archives an SQS message', async (t) => {
+  const { stackName } = t.context;
   const queues = await createSqsQueues(randomString());
-  const queueUrl = 'fakeQueueUrl';
   const body = { testdata: randomString() };
   const message = await SQS.sendSQSMessage(
     queues.queueUrl,
@@ -63,9 +64,9 @@ test.serial('archiveSqsMessageToS3 archives an SQS message', async (t) => {
     queues.queueUrl,
     { numOfMessages: 1, visibilityTimeout: 5 }
   );
-  const key = getS3KeyForArchivedMessage(process.env.stackName, message.MessageId);
+  const key = getS3KeyForArchivedMessage(stackName, message.MessageId, queues.queueName);
 
-  await Promise.all(messages.map((m) => archiveSqsMessageToS3(queueUrl, m)));
+  await Promise.all(messages.map((m) => archiveSqsMessageToS3(queues.queueUrl, m)));
 
   const item = await s3().getObject({
     Bucket: process.env.system_bucket,
@@ -84,7 +85,7 @@ test.serial('deleteArchivedMessageFromS3 deletes archived message in S3', async 
     QueueUrl: sqsQueues.queueUrl, MessageBody: JSON.stringify(message),
   }).promise();
   const messageId = sqsMessage.MessageId;
-  const key = getS3KeyForArchivedMessage(process.env.stackName, messageId);
+  const key = getS3KeyForArchivedMessage(process.env.stackName, messageId, sqsQueues.queueName);
 
   await s3PutObject({
     Bucket: process.env.system_bucket,
@@ -98,7 +99,7 @@ test.serial('deleteArchivedMessageFromS3 deletes archived message in S3', async 
     Key: key,
   }));
 
-  await deleteArchivedMessageFromS3(messageId);
+  await deleteArchivedMessageFromS3(messageId, sqsQueues.queueUrl);
 
   // Check that item no longer exists
   t.false(await s3ObjectExists({

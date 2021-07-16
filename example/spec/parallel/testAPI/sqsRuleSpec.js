@@ -14,6 +14,7 @@ const {
   receiveSQSMessages,
   sendSQSMessage,
   getQueueUrlByName,
+  getQueueNameFromUrl,
 } = require('@cumulus/aws-client/SQS');
 const { s3 } = require('@cumulus/aws-client/services');
 const { createSqsQueues, getSqsQueueMessageCounts } = require('@cumulus/api/lib/testUtils');
@@ -281,7 +282,9 @@ describe('The SQS rule', () => {
     });
 
     it('stores incoming messages on S3', async () => {
-      const key = getS3KeyForArchivedMessage(config.stackName, messageId);
+      const queueName = getQueueNameFromUrl(queues.sourceQueueUrl);
+      const key = getS3KeyForArchivedMessage(config.stackName, messageId, queueName);
+      console.log(key);
       const message = await s3().getObject({
         Bucket: config.bucket,
         Key: key,
