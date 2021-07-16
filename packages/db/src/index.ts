@@ -76,6 +76,7 @@ export {
 } from './lib/execution';
 
 export {
+  getApiGranuleCumulusIds,
   getApiGranuleExecutionCumulusIds,
   upsertGranuleWithExecutionJoinRecord,
 } from './lib/granule';

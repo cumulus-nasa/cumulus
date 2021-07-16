@@ -31,6 +31,7 @@
   "dependencies": {
     "@cumulus/aws-client": "9.2.0",
     "@cumulus/common": "9.2.0",
+    "@cumulus/es-client": "9.2.0",
     "@cumulus/errors": "9.2.0",
     "@cumulus/logger": "9.2.0",
     "@cumulus/message": "9.2.0",

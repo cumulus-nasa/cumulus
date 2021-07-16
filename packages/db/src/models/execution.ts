@@ -4,6 +4,9 @@ import { BasePgModel } from './base';
 import { tableNames } from '../tables';
 
 import { PostgresExecution, PostgresExecutionRecord } from '../types/execution';
+// import { PostgresGranuleExecution } from '../types/granule-execution';
+
+const queries = require('@cumulus/es-client/queries');
 
 class ExecutionPgModel extends BasePgModel<PostgresExecution, PostgresExecutionRecord> {
   constructor() {
@@ -52,16 +55,34 @@ class ExecutionPgModel extends BasePgModel<PostgresExecution, PostgresExecutionR
     executionCumulusIds: Array<number> | number,
     params: { limit: number, offset: number }
   ): Promise<Array<number>> {
-    const { limit, offset } = params || {};
+    const { limit, offset, ...sortQueries } = params || {};
+    const { sort } = queries(sortQueries);
     const executionCumulusIdsArray = [executionCumulusIds].flat();
     const executions = await knexOrTrx(this.tableName)
       .whereIn('cumulus_id', executionCumulusIdsArray)
-      .modify((query) => {
-        if (limit) query.limit(limit);
-        if (offset) query.offset(offset);
+      .modify((queryBuilder) => {
+        if (limit) queryBuilder.limit(limit);
+        if (offset) queryBuilder.offset(offset);
+        if (sort.length > 1) {
+          sort.forEach((sortObject: { [key: string]: { order: string } }) => {
+            const sortField = Object.keys(sortObject)[0];
+            const { order } = sortObject[sortField];
+            queryBuilder.orderBy(sortField, order);
+          });
+        }
       });
     return executions;
   }
+
+  // async tryJoin(
+  //   knexOrTrx: Knex | Knex.Transaction,
+  //   // granuleExecutions: Array<PostgresGranuleExecution> | PostgresGranuleExecution
+  // ): Promise<Array<number>> {
+  //   // const granuleExecutionsArray = [granuleExecution].flat();
+  //   const executions = await knexOrTrx(this.tableName)
+  //     .innerJoin(tableNames.granule, 'cumulus_id', '')
+  //   return executions;
+  // }
 }
 
 export { ExecutionPgModel };

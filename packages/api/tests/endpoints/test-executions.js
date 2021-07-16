@@ -121,13 +121,14 @@ test.before(async (t) => {
       status: 'completed',
       asyncOperationId: '0fe6317a-233c-4f19-a551-f0f76071402f',
       arn: 'arn2',
+      type: 'fakeWorkflow',
     })
   );
   fakeExecutions.push(
     fakeExecutionFactoryV2({ status: 'failed', type: 'workflow2' })
   );
   fakeExecutions.push(
-    fakeExecutionFactoryV2()
+    fakeExecutionFactoryV2({ type: 'fakeWorkflow' })
   );
   await Promise.all(
     fakeExecutions.map((i) =>
@@ -189,6 +190,8 @@ test.before(async (t) => {
     executionCumulusIds.push(await executionPgModel.create(knex, executionPgRecord));
     return executionPgRecord;
   }));
+
+  console.log(t.context.fakePGExecutions);
 
   t.context.executionCumulusIds = executionCumulusIds.flat();
 
@@ -504,6 +507,28 @@ test('POST /executions/search-by-granules returns correct executions when granul
     execution,
     await translatePostgresExecutionToApiExecution(fakePGExecutions
       .find((fakePGExecution) => fakePGExecution.arn === execution.arn))
+  ));
+});
+
+test('POST /executions/workflows-by-granules returns correct executions when granules array is passed', async (t) => {
+  const { fakeGranules, fakePGExecutions } = t.context;
+
+  const response = await request(app)
+    .post('/executions/workflows-by-granules?limit=10')
+    .send({ granules: [
+      { granuleId: fakeGranules[0].granuleId, collectionId: t.context.collectionId },
+      { granuleId: fakeGranules[1].granuleId, collectionId: t.context.collectionId },
+    ] })
+    .set('Accept', 'application/json')
+    .set('Authorization', `Bearer ${jwtAuthToken}`);
+
+  t.is(response.body.length, 1);
+
+  response.body.forEach((workflow) => t.deepEqual(
+    workflow,
+    fakePGExecutions
+      .map((fakePGExecution) => fakePGExecution.workflow_name)
+      .find((workflowName) => workflowName === workflow)
   ));
 });
 

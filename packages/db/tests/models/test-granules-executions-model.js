@@ -41,7 +41,7 @@ test.before(async (t) => {
 test.beforeEach(async (t) => {
   const [executionCumulusId] = await t.context.executionPgModel.create(
     t.context.knex,
-    fakeExecutionRecordFactory()
+    fakeExecutionRecordFactory({ workflow_name: 'fakeWorkflow' })
   );
   t.context.executionCumulusId = executionCumulusId;
   const [granuleCumulusId] = await t.context.granulePgModel.create(
@@ -242,4 +242,76 @@ test('GranulesExecutionsPgModel.searchByGranuleCumulusIds() works with a transac
 
     t.deepEqual(results.sort(), [executionCumulusId, newExecutionCumulusId].sort());
   });
+});
+
+test('GranulesExecutionsPgModel.getWorkflowNameJoin() returns correct values', async (t) => {
+  const {
+    knex,
+    collectionCumulusId,
+    executionPgModel,
+    granulePgModel,
+    granulesExecutionsPgModel,
+    executionCumulusId,
+    joinRecord,
+  } = t.context;
+  let newExecutionCumulusId;
+
+  const [granuleCumulusId] = await granulePgModel.create(
+    knex,
+    fakeGranuleRecordFactory({
+      collection_cumulus_id: collectionCumulusId,
+    })
+  );
+  const joinRecord2 = {
+    execution_cumulus_id: executionCumulusId,
+    granule_cumulus_id: Number(granuleCumulusId),
+  };
+
+  await knex.transaction(async (trx) => {
+    await granulesExecutionsPgModel.create(trx, joinRecord);
+    [newExecutionCumulusId] = await executionPgModel.create(
+      trx,
+      fakeExecutionRecordFactory({ workflow_name: 'fakeWorkflow2' })
+    );
+
+    await granulesExecutionsPgModel.create(trx, {
+      ...joinRecord,
+      execution_cumulus_id: newExecutionCumulusId,
+    });
+
+    await granulesExecutionsPgModel.create(trx, joinRecord2);
+  });
+
+  const results = await granulesExecutionsPgModel
+    .getWorkflowNameJoin(knex, [joinRecord.granule_cumulus_id, joinRecord2.granule_cumulus_id]);
+
+  t.deepEqual(results, ['fakeWorkflow']);
+});
+
+test('GranulesExecutionsPgModel.getWorkflowNameJoin() returns correct values for single granule', async (t) => {
+  const {
+    knex,
+    executionPgModel,
+    granulesExecutionsPgModel,
+    joinRecord,
+  } = t.context;
+  let newExecutionCumulusId;
+
+  await knex.transaction(async (trx) => {
+    await granulesExecutionsPgModel.create(trx, joinRecord);
+    [newExecutionCumulusId] = await executionPgModel.create(
+      trx,
+      fakeExecutionRecordFactory({ workflow_name: 'fakeWorkflow2' })
+    );
+
+    await granulesExecutionsPgModel.create(trx, {
+      ...joinRecord,
+      execution_cumulus_id: newExecutionCumulusId,
+    });
+  });
+
+  const results = await granulesExecutionsPgModel
+    .getWorkflowNameJoin(knex, [joinRecord.granule_cumulus_id]);
+
+  t.deepEqual(results.sort(), ['fakeWorkflow', 'fakeWorkflow2']);
 });
