@@ -1,10 +1,13 @@
 import * as querystring from 'querystring';
 import { URL } from 'url';
 import * as AWS from 'aws-sdk';
+import Logger from '@cumulus/logger';
 import { headObject, parseS3Uri } from './S3';
 import awsClient from './client';
 
 // Code modified from https://github.com/nasa/harmony/blob/main/app/util/object-store.ts
+
+const log = new Logger({ sender: '@cumulus/aws-client/S3ObjectStore' });
 
 /**
  * Class to use when interacting with S3
@@ -32,6 +35,8 @@ class S3ObjectStore {
     options: { [key: string]: string } = {},
     queryParams: { [key: string]: string }
   ): Promise<string> {
+    log.info(`Executing signGetObject with objectUrl: ${objectUrl}, options: ${JSON.stringify(options)}, queryParams: ${JSON.stringify(queryParams)}`);
+
     const url = new URL(objectUrl);
     if (url.protocol.toLowerCase() !== 's3:') {
       throw new TypeError(`Invalid S3 URL: ${objectUrl}`);
@@ -49,6 +54,9 @@ class S3ObjectStore {
 
     // TypeScript doesn't recognize that req has a presign method.  It does.
     const result = await (req as any).presign();
+
+    log.debug(`Signed GetObject request URL: ${result}`);
+
     return result;
   }
 
@@ -67,6 +75,7 @@ class S3ObjectStore {
     options: { [key: string]: string } = {},
     queryParams: { [key: string]: string }
   ): Promise<string> {
+    log.info(`Executing signHeadObject with objectUrl: ${objectUrl}, options: ${JSON.stringify(options)}, queryParams: ${JSON.stringify(queryParams)}`);
     const url = new URL(objectUrl);
 
     if (url.protocol.toLowerCase() !== 's3:') {
@@ -83,6 +92,9 @@ class S3ObjectStore {
 
     // TypeScript doesn't recognize that req has a presign method.  It does.
     const result = await (req as any).presign();
+
+    log.debug(`Signed HeadObject request URL: ${result}`);
+
     return result;
   }
 }

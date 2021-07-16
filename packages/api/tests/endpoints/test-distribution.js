@@ -39,12 +39,22 @@ const publicBucket = randomId('publicbucket');
 const publicBucketPath = randomId('publicpath');
 const protectedBucket = randomId('protectedbucket');
 
+const headerContentTypeTextPlain = 'text/plain';
+const headerCustomHeaderVal = 'example-custom-header-value';
+
 const bucketMap = {
   MAP: {
     path1: {
       bucket: 'bucket-path-1',
       headers: {
         'Content-Type': 'text/plain',
+      },
+    },
+    path2: {
+      bucket: 'bucket-path-2',
+      headers: {
+        'Content-Type': headerContentTypeTextPlain,
+        'Custom-Header': headerCustomHeaderVal,
       },
     },
     anotherPath1: 'bucket-path-1',
@@ -308,6 +318,31 @@ test.serial('A request for a public file with an access token returns a redirect
   t.is(redirectLocation.origin, signedFileUrl.origin);
   t.is(redirectLocation.pathname, signedFileUrl.pathname);
   t.is(redirectLocation.searchParams.get('A-userid'), accessTokenRecord.username);
+});
+
+test.serial('A request for a public file with an access token in the bucket-map with headers defined in the bucket map returns a redirect to S3 containing the expected parameters to override the response headers', async (t) => {
+  stubHeadObject();
+
+  const { accessTokenCookie, accessTokenRecord, fileKey, s3Endpoint } = context;
+  const fileLocation = `bucket-path-2/${fileKey}`;
+  const response = await request(distributionApp)
+    .get(`/path2/${fileKey}`)
+    .set('Accept', 'application/json')
+    .set('Cookie', [`accessToken=${accessTokenCookie}`])
+    .expect(307);
+
+  restoreHeadObjectStub();
+
+  validateDefaultHeaders(t, response);
+
+  const redirectLocation = new URL(response.headers.location);
+
+  const signedFileUrl = new URL(`${s3Endpoint}/${fileLocation}`);
+  t.is(redirectLocation.origin, signedFileUrl.origin);
+  t.is(redirectLocation.pathname, signedFileUrl.pathname);
+  t.is(redirectLocation.searchParams.get('A-userid'), accessTokenRecord.username);
+  t.true(response.headers['content-type'].includes(headerContentTypeTextPlain));
+  t.is(response.headers['custom-header'], headerCustomHeaderVal);
 });
 
 test.serial('A /login request with a good authorization code returns a correct response', async (t) => {

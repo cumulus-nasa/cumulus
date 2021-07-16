@@ -212,7 +212,7 @@ async function handleFileRequest(req, res) {
   const errorTemplate = pathresolve(templatesDirectory, 'error.html');
   const requestid = get(req, 'apiGateway.context.awsRequestId');
   const bucketMap = await getBucketMap();
-  const { bucket, key } = processFileRequestPath(req.params[0], bucketMap);
+  const { bucket, key, headers } = processFileRequestPath(req.params[0], bucketMap);
   if (bucket === undefined) {
     const error = `Unable to locate bucket from bucket map for ${req.params[0]}`;
     return res.boom.notFound(error);
@@ -242,6 +242,9 @@ async function handleFileRequest(req, res) {
   const url = buildS3Uri(bucket, key);
   const objectStore = objectStoreForProtocol('s3');
   const range = req.get('Range');
+
+  // Read custom headers from bucket_map.yaml
+  log.debug(`Bucket map headers for ${bucket}/${key}: ${JSON.stringify(headers)}`);
 
   const options = {
     ...range ? { Range: range } : {},
@@ -288,6 +291,7 @@ async function handleFileRequest(req, res) {
   return res
     .status(307)
     .set({ Location: signedS3Url })
+    .set({ ...headers })
     .send('Redirecting');
 }
 

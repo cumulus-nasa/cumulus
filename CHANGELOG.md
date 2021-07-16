@@ -49,6 +49,9 @@ The default reserved concurrency value is 8.
     - determines if the file request is public based on the bucket map rather than the bucket type
     - (EDL only) restricts download from PRIVATE_BUCKETS to users who belong to certain EDL User Groups
     - bucket prefix and object prefix are supported
+  - Add 'Bearer token' support as an authorization method
+- **CUMULUS-2486**
+  - Implemented support for custom headers
   - Added 'Bearer token' support as an authorization method
 - **CUMULUS-2487**
   - Added integration test for cumulus distribution API
@@ -102,6 +105,7 @@ the error object:
 behavior
 - **CUMULUS-2463**
   - Increases the duration of allowed backoff times for a successful test from 0.5 sec to 1 sec.
+
 
 ### Fixed
 
