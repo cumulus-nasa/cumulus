@@ -109,7 +109,10 @@ describe('The IngestGranuleCatchDuplicateErrorTest workflow with DuplicateHandli
           const executionId = get(execution, 'originalPayload.testExecutionId');
           return executionId === ingestGranuleRule1.payload.testExecutionId;
         },
-        { timestamp__from: ingestTime },
+        {
+          timestamp__from: ingestTime,
+          'originalPayload.testExecutionId': ingestGranuleRule1.payload.testExecutionId,
+        },
         { timeout: 30 }
       );
 
@@ -157,7 +160,10 @@ describe('The IngestGranuleCatchDuplicateErrorTest workflow with DuplicateHandli
           const executionId = get(execution, 'originalPayload.testExecutionId');
           return executionId === secondIngestGranuleRule.payload.testExecutionId;
         },
-        { timestamp__from: ingestTime },
+        {
+          timestamp__from: ingestTime,
+          'originalPayload.testExecutionId': secondIngestGranuleRule.payload.testExecutionId,
+        },
         { timeout: 30 }
       );
 

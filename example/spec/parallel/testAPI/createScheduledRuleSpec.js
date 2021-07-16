@@ -7,8 +7,11 @@ const {
 } = require('@cumulus/integration-tests');
 
 const rulesApi = require('@cumulus/api-client/rules');
-const { deleteExecution } = require('@cumulus/api-client/executions');
+const { deleteExecution, getExecution } = require('@cumulus/api-client/executions');
 
+const {
+  waitForApiStatus,
+} = require('../../helpers/apiUtils');
 const {
   createTestSuffix,
   createTimestampedTestId,
@@ -64,6 +67,11 @@ describe('When I create a scheduled rule via the Cumulus API', () => {
   });
 
   afterAll(async () => {
+    await waitForApiStatus(
+      getExecution,
+      { prefix: config.stackName, arn: executionArn },
+      'completed'
+    );
     await deleteExecution({ prefix: config.stackName, executionArn });
     await cleanupCollections(config.stackName, config.bucket, collectionsDir,
       testSuffix);

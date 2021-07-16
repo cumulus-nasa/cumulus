@@ -26,8 +26,6 @@ const {
 
 const { waitForApiStatus } = require('../../helpers/apiUtils');
 
-const SetupError = new Error('Test setup failed');
-
 describe('Creating a one-time rule via the Cumulus API', () => {
   let beforeAllError;
   let collection;
@@ -68,7 +66,10 @@ describe('Creating a one-time rule via the Cumulus API', () => {
         prefix,
         (execution) =>
           get(execution, 'originalPayload.testExecutionId') === testExecutionId,
-        { timestamp__from: ingestTime },
+        {
+          timestamp__from: ingestTime,
+          'originalPayload.testExecutionId': testExecutionId,
+        },
         { timeout: 60 }
       );
     } catch (error) {
@@ -93,12 +94,8 @@ describe('Creating a one-time rule via the Cumulus API', () => {
     }
   });
 
-  beforeEach(() => {
-    if (beforeAllError) fail(beforeAllError);
-  });
-
   it('starts a workflow execution', async () => {
-    if (beforeAllError) throw SetupError;
+    if (beforeAllError) fail(beforeAllError);
     await waitForApiStatus(
       getExecution,
       { prefix, arn: executionArn },
@@ -108,7 +105,7 @@ describe('Creating a one-time rule via the Cumulus API', () => {
   });
 
   it('the rule can be updated', async () => {
-    if (beforeAllError) throw SetupError;
+    if (beforeAllError) fail(beforeAllError);
 
     const updatedCheck = timestampedName('Updated');
 
@@ -158,7 +155,7 @@ describe('Creating a one-time rule via the Cumulus API', () => {
   });
 
   it('the rule is returned with the listed rules', async () => {
-    if (beforeAllError) throw SetupError;
+    if (beforeAllError) fail(beforeAllError);
 
     await expectAsync(
       pWaitFor(

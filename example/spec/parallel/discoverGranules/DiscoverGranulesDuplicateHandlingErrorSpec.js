@@ -95,11 +95,15 @@ describe('The DiscoverGranules workflow with an existing granule and duplicateHa
       );
 
       // Find the "IngestGranule" execution ARN
+      console.log('ingestGranuleRule.payload.testExecutionId', ingestGranuleRule.payload.testExecutionId);
       ingestGranuleExecutionArn = await findExecutionArn(
         prefix,
         (execution) =>
           get(execution, 'originalPayload.testExecutionId') === ingestGranuleRule.payload.testExecutionId,
-        { timestamp__from: ingestTime },
+        {
+          timestamp__from: ingestTime,
+          'originalPayload.testExecutionId': ingestGranuleRule.payload.testExecutionId,
+        },
         { timeout: 30 }
       );
 
@@ -133,16 +137,18 @@ describe('The DiscoverGranules workflow with an existing granule and duplicateHa
       );
 
       // Find the "DiscoverGranules" execution ARN
+      console.log('discoverGranulesRule.payload.testExecutionId', discoverGranulesRule.payload.testExecutionId);
       discoverGranulesExecutionArn = await findExecutionArn(
         prefix,
         (execution) =>
           get(execution, 'originalPayload.testExecutionId') === discoverGranulesRule.payload.testExecutionId,
-        { timestamp__from: ingestTime },
+        {
+          timestamp__from: ingestTime,
+          'originalPayload.testExecutionId': discoverGranulesRule.payload.testExecutionId,
+        },
         { timeout: 30 }
       );
     } catch (error) {
-      console.log('ingestGranuleRule.payload.testExecutionId', ingestGranuleRule.payload.testExecutionId);
-      console.log('discoverGranulesRule.payload.testExecutionId', discoverGranulesRule.payload.testExecutionId);
       beforeAllFailed = true;
       throw error;
     }

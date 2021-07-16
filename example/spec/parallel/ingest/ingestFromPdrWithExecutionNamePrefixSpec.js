@@ -23,21 +23,21 @@
 const cryptoRandomString = require('crypto-random-string');
 const flatten = require('lodash/flatten');
 const { deleteS3Object } = require('@cumulus/aws-client/S3');
-const { deleteGranule } = require('@cumulus/api-client/granules');
 const { s3 } = require('@cumulus/aws-client/services');
 const { LambdaStep } = require('@cumulus/integration-tests/sfnStep');
-const { deleteExecution } = require('@cumulus/api-client/executions');
 
 const {
   addCollections,
   addProviders,
-  api: apiTestUtils,
   cleanupProviders,
   cleanupCollections,
   waitForCompletedExecution,
   waitForStartedExecution,
 } = require('@cumulus/integration-tests');
 
+const { waitForExecutionAndDelete } = require('../../helpers/executionUtils');
+const { waitForGranuleAndDelete } = require('../../helpers/granuleUtils');
+const { waitAndDeletePdr } = require('../../helpers/pdrUtils');
 const { buildAndExecuteWorkflow } = require('../../helpers/workflowUtils');
 const {
   createTestDataPath,
@@ -186,22 +186,22 @@ describe('The DiscoverAndQueuePdrsExecutionPrefix workflow', () => {
   });
 
   afterAll(async () => {
-    // wait for execution to complete before deleting granule
-    await waitForCompletedExecution(ingestGranuleExecutionArn);
-    await deleteGranule({
-      prefix: config.stackName,
-      granuleId: testDataGranuleId,
-    });
+    await waitForGranuleAndDelete(
+      config.stackName,
+      testDataGranuleId,
+      'completed'
+    );
     // clean up stack state added by test
-    await apiTestUtils.deletePdr({
-      prefix: config.stackName,
-      pdr: pdrFilename,
-    });
+    await waitAndDeletePdr(
+      config.stackName,
+      pdrFilename,
+      'completed'
+    );
 
     // The order of execution deletes matters. Children must be deleted before parents.
-    await deleteExecution({ prefix: config.stackName, executionArn: ingestGranuleExecutionArn });
-    await deleteExecution({ prefix: config.stackName, executionArn: parsePdrExecutionArn });
-    await deleteExecution({ prefix: config.stackName, executionArn: discoverPdrsExecutionArn });
+    await waitForExecutionAndDelete(config.stackName, ingestGranuleExecutionArn, 'completed');
+    await waitForExecutionAndDelete(config.stackName, parsePdrExecutionArn, 'completed');
+    await waitForExecutionAndDelete(config.stackName, discoverPdrsExecutionArn, 'completed');
 
     await Promise.all([
       deleteFolder(config.bucket, testDataFolder),

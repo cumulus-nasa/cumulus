@@ -24,7 +24,7 @@ const { deleteS3Object, s3PutObject } = require('@cumulus/aws-client/S3');
 const { loadConfig } = require('../../helpers/testUtils');
 
 describe('The IngestGranule workflow with DuplicateHandling="version" and a granule re-ingested with one new file, one unchanged existing file, and one modified file', () => {
-  let beforeAllFailed = false;
+  let beforeAllError;
   let collection;
   let config;
   let differentChecksumFilename;
@@ -116,13 +116,17 @@ describe('The IngestGranule workflow with DuplicateHandling="version" and a gran
       );
 
       // Find the execution ARN
+      console.log('ingestGranuleRule1.payload.testExecutionId', ingestGranuleRule1.payload.testExecutionId);
       ingestGranuleExecution1Arn = await findExecutionArn(
         prefix,
         (execution) => {
           const executionId = get(execution, 'originalPayload.testExecutionId');
           return executionId === ingestGranuleRule1.payload.testExecutionId;
         },
-        { timestamp__from: ingestTime },
+        {
+          timestamp__from: ingestTime,
+          'ingestGranuleRule1.payload.testExecutionId': ingestGranuleRule1.payload.testExecutionId,
+        },
         { timeout: 30 }
       );
 
@@ -187,6 +191,7 @@ describe('The IngestGranule workflow with DuplicateHandling="version" and a gran
       );
 
       // Find the execution ARN
+      console.log('ingestGranuleRule2.payload.testExecutionId', ingestGranuleRule2.payload.testExecutionId);
       ingestGranuleExecution2Arn = await findExecutionArn(
         prefix,
         (execution) => {
@@ -204,13 +209,13 @@ describe('The IngestGranule workflow with DuplicateHandling="version" and a gran
         status: 'completed',
       });
     } catch (error) {
-      beforeAllFailed = true;
+      beforeAllError = error;
       throw error;
     }
   });
 
   it('returns the expected files', () => {
-    if (beforeAllFailed) fail('beforeAll() failed');
+    if (beforeAllError) fail(beforeAllError);
     else {
       const files = ingestGranuleExecution2.finalPayload.granules[0].files;
 

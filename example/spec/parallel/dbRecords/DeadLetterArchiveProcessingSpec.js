@@ -122,7 +122,7 @@ describe('A dead letter record archive processing operation', () => {
       messageKey = `${archivePath}/${cumulusMessage.cumulus_meta.execution_name}`;
       await putJsonS3Object(systemBucket, messageKey, cumulusMessage);
 
-      await postRecoverCumulusMessages(
+      const postRecoverResponse = await postRecoverCumulusMessages(
         {
           prefix: stackName,
           payload: {
@@ -131,6 +131,8 @@ describe('A dead letter record archive processing operation', () => {
           },
         }
       );
+      const postRecoverResponseBody = JSON.parse(postRecoverResponse.body);
+      console.log('dead letter recover async operation ID', postRecoverResponseBody.id);
     } catch (error) {
       beforeAllFailed = true;
       console.log('beforeAll() failed, error:', error);
