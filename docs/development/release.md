@@ -260,7 +260,9 @@ Finally, you need to reproduce the version update changes back to master.
 
 If this is the latest version, you can simply create a PR to merge the minor version base branch back to master.
 
-Do not merge `master` back into the release branch **until**:
+Do not merge `master` back into the release branch since we want the release branch to _just_ have the code from the release.  Instead, create a new branch off of the release branch and merge that to master. You can freely merge master into this branch and delete it when it is merged to master.
+
+Do not merge `master` back into the release merge branch **until**:
 
 - the PR is approved,
 - CI has passed against the release artifacts above,
