@@ -20,6 +20,13 @@ period. Reserved concurrency can be configured with the `archive_api_reserved_co
 terraform variable on the Cumulus module and increased if you are seeing throttling erorrs.
 The default reserved concurrency value is 8.
 
+### Notable changes
+
+- `@cumulus/sync-granule` task should now properly handle
+syncing files from HTTP/HTTPS providers where basic auth is
+required and involves a redirect to a different host (e.g.
+downloading files protected by Earthdata login)
+
 ### Added
 
 - Added user doc describing new features related to the Cumulus dead letter archive.
@@ -108,6 +115,10 @@ behavior
 - Fixed bug where `cmr_custom_host` variable was not properly forwarded into `archive`, `ingest`, and `sqs-message-remover` modules from `cumulus` module
 - Fixed bug where `parse-pdr` set a granule's provider to the entire provider record when a `NODE_NAME`
   is present. Expected behavior consistent with other tasks is to set the provider name in that field.
+- **CUMULUS-2548**
+  - Fixed `@cumulus/ingest/HttpProviderClient.sync` to
+properly handle basic auth when redirecting to a different
+host
 - **CUMULUS-2568**
   - Update reconciliation report integration test to have better cleanup/failure behavior
   - Fixed `@cumulus/api-client/pdrs.getPdr` to request correct endpoint for returning a PDR from the API

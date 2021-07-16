@@ -620,6 +620,10 @@ module.exports.provider = {
       title: 'Host',
       type: 'string',
     },
+    basicAuthRedirectHost: {
+      title: 'Allowed host for redirect if data is protected by HTTP basic-auth',
+      type: 'string',
+    },
     port: {
       title: 'Port',
       type: 'number',

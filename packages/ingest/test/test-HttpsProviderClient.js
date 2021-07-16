@@ -9,7 +9,7 @@ const createTestServer = require('create-test-server');
 const cookieParser = require('cookie-parser');
 const { tmpdir } = require('os');
 const {
-  fileExists,
+  s3ObjectExists,
   getTextObject,
   headObject,
   promiseS3Upload,
@@ -30,10 +30,25 @@ const expectedAuthHeader = `Basic ${Buffer.from(`${basicUsername}:${basicPasswor
 const publicFile = '/public/file.hdf';
 // path for testing Basic auth HTTPS requests
 const protectedFile = '/protected-basic/file.hdf';
+const protectedFile2 = '/protected-basic/file2.hdf';
 
 test.beforeEach(async (t) => {
   t.context.server = await createTestServer({ certificate: '127.0.0.1' });
   t.context.server.use(cookieParser());
+
+  t.context.server2 = await createTestServer({ certificate: '127.0.0.1' });
+  t.context.server2Url = new URL(t.context.server2.url);
+  t.context.server2.use(cookieParser());
+  // auth endpoint
+  t.context.server2.get('/auth', (req, res) => {
+    if (req.headers.authorization === expectedAuthHeader) {
+      res.cookie('DATA', 'abcd1234'); // set cookie to test cookie-jar usage
+      const protectedUrl = new URL(protectedFile2, t.context.server.url);
+      res.redirect(protectedUrl.toString());
+    } else {
+      res.status(401).end();
+    }
+  });
 
   // public endpoint
   t.context.server.get(publicFile, (_, res) => {
@@ -47,6 +62,16 @@ test.beforeEach(async (t) => {
       res.end(remoteContent);
     } else {
       res.redirect('/auth');
+    }
+  });
+  // protected endpoint with redirect to /auth on a
+  // different server
+  t.context.server.get(protectedFile2, (req, res) => {
+    if (req.cookies && req.cookies.DATA === 'abcd1234') {
+      res.header({ 'content-type': expectedContentType });
+      res.end(remoteContent);
+    } else {
+      res.redirect(`${t.context.server2.url}/auth`);
     }
   });
   // auth endpoint
@@ -107,7 +132,7 @@ test('HttpsProviderClient decrypts credentials when encrypted', async (t) => {
   );
 });
 
-test('list() with HTTPS returns expected files', async (t) => {
+test('HttpsProviderClient.list() with HTTPS returns expected files', async (t) => {
   t.context.server.get('/', '<html><body><A HREF="test.txt">test.txt</A></body></html>');
 
   const expectedFiles = [{ name: 'test.txt', path: '' }];
@@ -117,18 +142,19 @@ test('list() with HTTPS returns expected files', async (t) => {
   t.deepEqual(actualFiles, expectedFiles);
 });
 
-test('download() downloads a file', async (t) => {
+test('HttpsProviderClient.download() downloads a file', async (t) => {
   const { httpsProviderClient } = t.context;
   const localPath = path.join(tmpdir(), randomString());
   try {
     await httpsProviderClient.download({ remotePath: publicFile, localPath });
-    t.is(fs.existsSync(localPath), true);
+    t.true(fs.existsSync(localPath));
+    t.is(fs.readFileSync(localPath, 'utf-8'), remoteContent);
   } finally {
     fs.unlinkSync(localPath);
   }
 });
 
-test('sync() downloads remote file to s3 with correct content-type', async (t) => {
+test('HttpsProviderClient.sync() copies remote file to s3 with correct content-type', async (t) => {
   const destinationBucket = randomString();
   const destinationKey = 'syncedFile.json';
 
@@ -141,7 +167,10 @@ test('sync() downloads remote file to s3 with correct content-type', async (t) =
     });
     t.truthy(s3uri, 'Missing s3uri');
     t.truthy(etag, 'Missing etag');
-    t.truthy(fileExists(destinationBucket, destinationKey));
+    t.true(await s3ObjectExists({
+      Bucket: destinationBucket,
+      Key: destinationKey,
+    }));
     const syncedContent = await getTextObject(destinationBucket, destinationKey);
     t.is(syncedContent, remoteContent);
 
@@ -166,7 +195,7 @@ test('HttpsProviderClient throws error if it gets a username but no password', (
   });
 });
 
-test('HttpsProviderClient supports basic auth with redirects for download', async (t) => {
+test('HttpsProviderClient.download() supports basic auth with redirects', async (t) => {
   const httpsProviderClient = new HttpProviderClient({
     protocol: 'https',
     host: '127.0.0.1',
@@ -179,13 +208,81 @@ test('HttpsProviderClient supports basic auth with redirects for download', asyn
   const localPath = path.join(tmpdir(), randomString());
   try {
     await httpsProviderClient.download({ remotePath: protectedFile, localPath });
-    t.is(fs.existsSync(localPath), true);
+    t.true(fs.existsSync(localPath));
+    t.is(fs.readFileSync(localPath, 'utf-8'), remoteContent);
   } finally {
     fs.unlinkSync(localPath);
   }
 });
 
-test('HttpsProviderClient supports basic auth with redirects for sync', async (t) => {
+test('HttpsProviderClient.download() supports basic auth with redirect to different host/port', async (t) => {
+  const httpsProviderClient = new HttpProviderClient({
+    protocol: 'https',
+    host: '127.0.0.1',
+    port: t.context.server.sslPort,
+    certificateUri: `s3://${t.context.configBucket}/certificate.pem`,
+    username: basicUsername,
+    password: basicPassword,
+    basicAuthRedirectHost: t.context.server2Url.host,
+  });
+
+  const localPath = path.join(tmpdir(), randomString());
+  try {
+    await httpsProviderClient.download({ remotePath: protectedFile2, localPath });
+    t.true(fs.existsSync(localPath));
+    t.is(fs.readFileSync(localPath, 'utf-8'), remoteContent);
+  } finally {
+    fs.unlinkSync(localPath);
+  }
+});
+
+test('HttpsProviderClient.download() fails on basic auth redirect to different host if basicAuthRedirectHost is missing', async (t) => {
+  const httpsProviderClient = new HttpProviderClient({
+    protocol: 'https',
+    host: '127.0.0.1',
+    port: t.context.server.sslPort,
+    certificateUri: `s3://${t.context.configBucket}/certificate.pem`,
+    username: basicUsername,
+    password: basicPassword,
+  });
+
+  const localPath = path.join(tmpdir(), randomString());
+  console.log(localPath);
+  try {
+    await t.throwsAsync(
+      httpsProviderClient.download({ remotePath: protectedFile2, localPath }),
+      { message: /Response code 401/ }
+    );
+    t.is(fs.readFileSync(localPath, 'utf-8'), '');
+  } finally {
+    fs.unlinkSync(localPath);
+  }
+});
+
+test('HttpsProviderClient.download() fails on basic auth redirect to different host if basicAuthRedirectHost does not match redirect host', async (t) => {
+  const httpsProviderClient = new HttpProviderClient({
+    protocol: 'https',
+    host: '127.0.0.1',
+    port: t.context.server.sslPort,
+    certificateUri: `s3://${t.context.configBucket}/certificate.pem`,
+    username: basicUsername,
+    password: basicPassword,
+    basicAuthRedirectHost: 'fake-host',
+  });
+
+  const localPath = path.join(tmpdir(), randomString());
+  try {
+    await t.throwsAsync(
+      httpsProviderClient.download({ remotePath: protectedFile2, localPath }),
+      { message: /Response code 401/ }
+    );
+    t.is(fs.readFileSync(localPath, 'utf-8'), '');
+  } finally {
+    fs.unlinkSync(localPath);
+  }
+});
+
+test('HttpsProviderClient.sync() supports basic auth with redirects', async (t) => {
   const httpsProviderClient = new HttpProviderClient({
     protocol: 'https',
     host: '127.0.0.1',
@@ -202,12 +299,112 @@ test('HttpsProviderClient supports basic auth with redirects for sync', async (t
     await httpsProviderClient.sync({
       fileRemotePath: protectedFile, destinationBucket, destinationKey,
     });
-    t.truthy(fileExists(destinationBucket, destinationKey));
+    t.true(await s3ObjectExists({
+      Bucket: destinationBucket,
+      Key: destinationKey,
+    }));
     const syncedContent = await getTextObject(destinationBucket, destinationKey);
     t.is(syncedContent, remoteContent);
 
     const s3HeadResponse = await headObject(destinationBucket, destinationKey);
     t.is(expectedContentType, s3HeadResponse.ContentType);
+  } finally {
+    await recursivelyDeleteS3Bucket(destinationBucket);
+  }
+});
+
+test('HttpsProviderClient.sync() supports basic auth with redirect to different host/port', async (t) => {
+  const httpsProviderClient = new HttpProviderClient({
+    protocol: 'https',
+    host: '127.0.0.1',
+    port: t.context.server.sslPort,
+    certificateUri: `s3://${t.context.configBucket}/certificate.pem`,
+    username: basicUsername,
+    password: basicPassword,
+    basicAuthRedirectHost: t.context.server2Url.host,
+  });
+
+  const destinationBucket = randomString();
+  const destinationKey = 'syncedFile.hdf';
+  try {
+    await s3().createBucket({ Bucket: destinationBucket }).promise();
+    await httpsProviderClient.sync({
+      fileRemotePath: protectedFile2,
+      destinationBucket,
+      destinationKey,
+    });
+    t.true(await s3ObjectExists({
+      Bucket: destinationBucket,
+      Key: destinationKey,
+    }));
+    const syncedContent = await getTextObject(destinationBucket, destinationKey);
+    t.is(syncedContent, remoteContent);
+
+    const s3HeadResponse = await headObject(destinationBucket, destinationKey);
+    t.is(expectedContentType, s3HeadResponse.ContentType);
+  } finally {
+    await recursivelyDeleteS3Bucket(destinationBucket);
+  }
+});
+
+test('HttpsProviderClient.sync() fails on basic auth redirect to different host if basicAuthRedirectHost is missing', async (t) => {
+  const httpsProviderClient = new HttpProviderClient({
+    protocol: 'https',
+    host: '127.0.0.1',
+    port: t.context.server.sslPort,
+    certificateUri: `s3://${t.context.configBucket}/certificate.pem`,
+    username: basicUsername,
+    password: basicPassword,
+  });
+
+  const destinationBucket = randomString();
+  const destinationKey = 'syncedFile.hdf';
+  try {
+    await s3().createBucket({ Bucket: destinationBucket }).promise();
+    await t.throwsAsync(
+      httpsProviderClient.sync({
+        fileRemotePath: protectedFile2,
+        destinationBucket,
+        destinationKey,
+      }),
+      { message: /Response code 401/ }
+    );
+    t.false(await s3ObjectExists({
+      Bucket: destinationBucket,
+      Key: destinationKey,
+    }));
+  } finally {
+    await recursivelyDeleteS3Bucket(destinationBucket);
+  }
+});
+
+test('HttpsProviderClient.sync() fails on basic auth redirect to different host if basicAuthRedirectHost does not match redirect host', async (t) => {
+  const httpsProviderClient = new HttpProviderClient({
+    protocol: 'https',
+    host: '127.0.0.1',
+    port: t.context.server.sslPort,
+    certificateUri: `s3://${t.context.configBucket}/certificate.pem`,
+    username: basicUsername,
+    password: basicPassword,
+    basicAuthRedirectHost: 'fake-host',
+  });
+
+  const destinationBucket = randomString();
+  const destinationKey = 'syncedFile.hdf';
+  try {
+    await s3().createBucket({ Bucket: destinationBucket }).promise();
+    await t.throwsAsync(
+      httpsProviderClient.sync({
+        fileRemotePath: protectedFile2,
+        destinationBucket,
+        destinationKey,
+      }),
+      { message: /Response code 401/ }
+    );
+    t.false(await s3ObjectExists({
+      Bucket: destinationBucket,
+      Key: destinationKey,
+    }));
   } finally {
     await recursivelyDeleteS3Bucket(destinationBucket);
   }

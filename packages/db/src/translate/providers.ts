@@ -41,6 +41,7 @@ export const translateApiProviderToPostgresProvider = async (
     port: record.port,
     host: record.host,
     protocol: record.protocol,
+    basic_auth_redirect_host: record.basicAuthRedirectHost,
     username,
     password,
   });

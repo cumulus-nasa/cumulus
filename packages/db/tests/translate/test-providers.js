@@ -25,6 +25,7 @@ test('translateApiProviderToPostgresProvider translates a Cumulus Provider objec
     privateKey: 'fakeKey',
     cmKeyId: 'fakecmId',
     certificateUri: 'fakeUri',
+    basicAuthRedirectHost: 'redirectHost',
   };
 
   const expected = {
@@ -40,6 +41,7 @@ test('translateApiProviderToPostgresProvider translates a Cumulus Provider objec
     protocol: 'fakeProtocol',
     updated_at: new Date(5678),
     username: 'fakeEncryptedString',
+    basic_auth_redirect_host: 'redirectHost',
   };
   const result = await translateApiProviderToPostgresProvider(
     cumulusProviderObject,

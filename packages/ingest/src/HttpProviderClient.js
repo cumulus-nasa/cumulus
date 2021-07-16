@@ -29,6 +29,8 @@ const validateHost = (host) => {
   throw new TypeError(`provider.host is not a valid hostname or IP: ${host}`);
 };
 
+const redirectCodes = new Set([300, 301, 302, 303, 304, 307, 308]);
+
 class HttpProviderClient {
   constructor(providerConfig) {
     this.providerConfig = providerConfig;
@@ -42,6 +44,7 @@ class HttpProviderClient {
       throw new ReferenceError('Found providerConfig.username, but providerConfig.password is not defined');
     }
     this.encrypted = providerConfig.encrypted;
+    this.basicAuthRedirectHost = this.providerConfig.basicAuthRedirectHost;
     this.endpoint = buildURL({
       protocol: this.protocol,
       host: this.host,
@@ -62,6 +65,46 @@ class HttpProviderClient {
 
     if (this.username) this.gotOptions.username = this.username;
     if (this.password) this.gotOptions.password = this.password;
+
+    const RedirectHandler = {
+      // Need to use named function and not fat arrow
+      // expression so that we can use the bound value
+      // of "this"
+      handleBeforeRedirect(options, response) {
+        // If there is no allowed redirect for basic auth specified, do not
+        // forward auth credentials
+        if (!this.basicAuthRedirectHost) {
+          log.debug(`
+            Request is redirecting to ${options.url.toString()} but no
+            basicAuthRedirectHost is specified for provider, so auth
+            credentials will not be forwarded
+          `);
+          return;
+        }
+
+        if (options.url.host !== this.basicAuthRedirectHost) {
+          log.debug(`
+            basicAuthRedirectHost ${this.basicAuthRedirectHost} does not match
+            host for redirect ${options.url.host}, so auth
+            credentials will not be forwarded
+          `);
+          return;
+        }
+
+        if (redirectCodes.has(response.statusCode)) {
+          /* eslint-disable no-param-reassign */
+          options.url.username = this.username;
+          options.url.password = this.password;
+          /* eslint-enable no-param-reassign */
+        }
+      },
+    };
+    const boundHandleBeforeRedirect = RedirectHandler.handleBeforeRedirect.bind(this);
+    this.gotOptions.hooks = {
+      beforeRedirect: [
+        boundHandleBeforeRedirect,
+      ],
+    };
   }
 
   async downloadTLSCertificate() {
@@ -69,7 +112,8 @@ class HttpProviderClient {
     try {
       const s3Params = parseS3Uri(this.certificateUri);
       this.certificate = await getTextObject(s3Params.Bucket, s3Params.Key);
-      this.gotOptions.ca = this.certificate;
+      this.gotOptions.https = this.gotOptions.https || {};
+      this.gotOptions.https.certificateAuthority = this.certificate;
     } catch (error) {
       throw new errors.RemoteResourceError(`Failed to fetch CA certificate: ${error}`);
     }
@@ -206,9 +250,10 @@ class HttpProviderClient {
   /**
    * Download the remote file to a given s3 location
    *
-   * @param {string} remotePath - the full path to the remote file to be fetched
-   * @param {string} bucket - destination s3 bucket of the file
-   * @param {string} key - destination s3 key of the file
+   * @param {Object} params
+   * @param {string} params.fileRemotePath - the full path to the remote file to be fetched
+   * @param {string} params.destinationBucket - destination s3 bucket of the file
+   * @param {string} params.destinationKey - destination s3 key of the file
    * @returns {Promise.<{ s3uri: string, etag: string }>} an object containing
    *    the S3 URI and ETag of the destination file
    */
@@ -237,7 +282,11 @@ class HttpProviderClient {
     const contentType = headers['content-type'] || lookupMimeType(destinationKey);
 
     const pass = new PassThrough();
-    got.stream(remoteUrl, this.gotOptions).pipe(pass);
+    await promisify(pipeline)(
+      got.stream(remoteUrl, this.gotOptions),
+      pass
+    );
+
     const { ETag: etag } = await promiseS3Upload({
       Bucket: destinationBucket,
       Key: destinationKey,
