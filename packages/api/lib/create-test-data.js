@@ -7,7 +7,7 @@ const {
   GranulePgModel,
   CollectionPgModel,
 } = require('@cumulus/db');
-
+const { indexGranule } = require('@cumulus/es-client/indexer');
 const { constructCollectionId } = require('@cumulus/message/Collections');
 
 // Postgres mock data factories
@@ -41,6 +41,7 @@ async function createGranuleAndFiles({
   dbClient,
   collectionId,
   collectionCumulusId,
+  esClient,
   published = false,
 }) {
   let newCollectionId;
@@ -141,6 +142,7 @@ async function createGranuleAndFiles({
 
   // create a new Dynamo granule
   await granuleModel.create(newGranule);
+  await indexGranule(esClient, newGranule, process.env.ES_INDEX);
 
   // create a new Postgres granule
   const newPGGranule = fakeGranuleRecordFactory(

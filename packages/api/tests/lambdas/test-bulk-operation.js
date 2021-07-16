@@ -4,9 +4,18 @@ const proxyquire = require('proxyquire');
 const sinon = require('sinon');
 
 const awsServices = require('@cumulus/aws-client/services');
-const { generateLocalTestDb, localStackConnectionEnv, GranulePgModel } = require('@cumulus/db');
+const {
+  destroyLocalTestDb,
+  generateLocalTestDb,
+  localStackConnectionEnv,
+  GranulePgModel,
+} = require('@cumulus/db');
 const { randomId, randomString } = require('@cumulus/common/test-utils');
 const { createBucket, deleteS3Buckets } = require('@cumulus/aws-client/S3');
+const {
+  createTestIndex,
+  cleanupTestIndex,
+} = require('@cumulus/es-client/testUtils');
 const { fakeGranuleFactoryV2 } = require('../../lib/testUtils');
 const { createGranuleAndFiles } = require('../../lib/create-test-data');
 const Granule = require('../../models/granules');
@@ -82,6 +91,10 @@ test.before(async (t) => {
   t.context.knex = knex;
   t.context.knexAdmin = knexAdmin;
 
+  const { esIndex, esClient } = await createTestIndex();
+  t.context.esIndex = esIndex;
+  t.context.esClient = esClient;
+
   // Store the CMR password
   process.env.cmr_password_secret_name = randomString();
   await awsServices.secretsManager().createSecret({
@@ -101,7 +114,7 @@ test.afterEach.always(() => {
   sandbox.resetHistory();
 });
 
-test.after.always(async () => {
+test.after.always(async (t) => {
   await awsServices.secretsManager().deleteSecret({
     SecretId: envVars.cmr_password_secret_name,
     ForceDeleteWithoutRecovery: true,
@@ -111,6 +124,12 @@ test.after.always(async () => {
     ForceDeleteWithoutRecovery: true,
   }).promise();
 
+  await destroyLocalTestDb({
+    knex: t.context.knex,
+    knexAdmin: t.context.knexAdmin,
+    testDbName,
+  });
+  await cleanupTestIndex(t.context);
   sandbox.restore();
 });
 
@@ -340,10 +359,12 @@ test.serial('bulk operation BULK_GRANULE_DELETE deletes listed granule IDs from 
     createGranuleAndFiles({
       dbClient: t.context.knex,
       published: false,
+      esClient: t.context.esClient,
     }),
     createGranuleAndFiles({
       dbClient: t.context.knex,
       published: false,
+      esClient: t.context.esClient,
     }),
   ]);
 
@@ -401,12 +422,12 @@ test.serial('bulk operation BULK_GRANULE_DELETE processes all granules that do n
   });
 
   const granules = await Promise.all([
-    createGranuleAndFiles({ dbClient: t.context.knex }),
-    createGranuleAndFiles({ dbClient: t.context.knex }),
-    createGranuleAndFiles({ dbClient: t.context.knex }),
-    createGranuleAndFiles({ dbClient: t.context.knex }),
-    createGranuleAndFiles({ dbClient: t.context.knex }),
-    createGranuleAndFiles({ dbClient: t.context.knex }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
   ]);
 
   const aggregateError = await t.throwsAsync(bulkOperation.handler({
@@ -445,8 +466,8 @@ test.serial('bulk operation BULK_GRANULE_DELETE processes all granules that do n
 
 test.serial('bulk operation BULK_GRANULE_DELETE deletes granule IDs returned by query', async (t) => {
   const granules = await Promise.all([
-    createGranuleAndFiles({ dbClient: t.context.knex }),
-    createGranuleAndFiles({ dbClient: t.context.knex }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
+    createGranuleAndFiles({ dbClient: t.context.knex, esClient: t.context.esClient }),
   ]);
 
   esSearchStub.resolves({

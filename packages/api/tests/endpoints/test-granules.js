@@ -17,6 +17,10 @@ const {
   translateApiGranuleToPostgresGranule,
   translateApiFiletoPostgresFile,
 } = require('@cumulus/db');
+const {
+  createTestIndex,
+  cleanupTestIndex,
+} = require('@cumulus/es-client/testUtils');
 
 const {
   buildS3Uri,
@@ -37,9 +41,7 @@ const { CMR } = require('@cumulus/cmr-client');
 const {
   metadataObjectFromCMRFile,
 } = require('@cumulus/cmrjs/cmr-utils');
-const { bootstrapElasticSearch } = require('@cumulus/es-client/bootstrap');
 const indexer = require('@cumulus/es-client/indexer');
-const { Search } = require('@cumulus/es-client/search');
 const launchpad = require('@cumulus/launchpad-auth');
 const { randomString, randomId } = require('@cumulus/common/test-utils');
 const { getDistributionBucketMapKey } = require('@cumulus/distribution-utils');
@@ -79,8 +81,6 @@ const testDbName = `granules_${cryptoRandomString({ length: 10 })}`;
 
 let accessTokenModel;
 let collectionModel;
-let esClient;
-let esIndex;
 let filePgModel;
 let granuleModel;
 let granulePgModel;
@@ -149,15 +149,6 @@ test.before(async (t) => {
     ...localStackConnectionEnv,
     PG_DATABASE: testDbName,
   };
-  esIndex = randomId('esindex');
-  t.context.esAlias = randomId('esAlias');
-  process.env.ES_INDEX = t.context.esAlias;
-
-  // create esClient
-  esClient = await Search.es('fakehost');
-
-  // add fake elasticsearch index
-  await bootstrapElasticSearch('fakehost', esIndex, t.context.esAlias);
 
   // create a fake bucket
   await createBucket(process.env.system_bucket);
@@ -205,6 +196,10 @@ test.before(async (t) => {
   t.context.knex = knex;
   t.context.knexAdmin = knexAdmin;
 
+  const { esIndex, esClient } = await createTestIndex();
+  t.context.esIndex = esIndex;
+  t.context.esClient = esClient;
+
   // Create collections in Dynamo and Postgres
   // we need this because a granule has a foreign key referring to collections
   const collectionName = 'fakeCollection';
@@ -233,8 +228,6 @@ test.before(async (t) => {
 });
 
 test.beforeEach(async (t) => {
-  const { esAlias } = t.context;
-
   const granuleId1 = cryptoRandomString({ length: 6 });
   const granuleId2 = cryptoRandomString({ length: 6 });
 
@@ -246,7 +239,7 @@ test.beforeEach(async (t) => {
 
   await Promise.all(t.context.fakeGranules.map((granule) =>
     granuleModel.create(granule)
-      .then((record) => indexer.indexGranule(esClient, record, esAlias))));
+      .then((record) => indexer.indexGranule(t.context.esClient, record, t.context.esIndex))));
 
   // create fake Postgres granule records
   t.context.fakePGGranules = [
@@ -274,7 +267,6 @@ test.after.always(async (t) => {
   await collectionModel.deleteTable();
   await granuleModel.deleteTable();
   await accessTokenModel.deleteTable();
-  await esClient.indices.delete({ index: esIndex });
   await recursivelyDeleteS3Bucket(process.env.system_bucket);
   await secretsManager().deleteSecret({
     SecretId: process.env.cmr_password_secret_name,
@@ -290,6 +282,7 @@ test.after.always(async (t) => {
     knexAdmin: t.context.knexAdmin,
     testDbName,
   });
+  await cleanupTestIndex(t.context);
 });
 
 test.serial('default returns list of granules', async (t) => {
@@ -548,6 +541,7 @@ test.serial('remove a granule from CMR', async (t) => {
   const { s3Buckets, newDynamoGranule } = await createGranuleAndFiles({
     dbClient: t.context.knex,
     published: true,
+    esClient: t.context.esClient,
   });
 
   const granuleId = newDynamoGranule.granuleId;
@@ -652,6 +646,7 @@ test.serial('DELETE deleting an existing granule that is published will fail and
   const { s3Buckets, newDynamoGranule } = await createGranuleAndFiles({
     dbClient: t.context.knex,
     published: true,
+    esClient: t.context.esClient,
   });
 
   const granuleId = newDynamoGranule.granuleId;
@@ -691,6 +686,7 @@ test.serial('DELETE deleting an existing unpublished granule', async (t) => {
   const { s3Buckets, newDynamoGranule } = await createGranuleAndFiles({
     dbClient: t.context.knex,
     published: false,
+    esClient: t.context.esClient,
   });
 
   const response = await request(app)
@@ -808,6 +804,7 @@ test.serial('DELETE throws an error if the Postgres get query fails', async (t) 
   const { s3Buckets, newDynamoGranule } = await createGranuleAndFiles({
     dbClient: t.context.knex,
     published: false,
+    esClient: t.context.esClient,
   });
 
   sinon

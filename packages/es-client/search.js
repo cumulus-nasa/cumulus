@@ -197,14 +197,29 @@ class BaseSearch {
     };
   }
 
-  async get(id) {
+  async get(id, parentId) {
     const body = {
       query: {
-        term: {
-          _id: id,
+        bool: {
+          must: [{
+            term: {
+              _id: id,
+            },
+          }],
         },
       },
     };
+
+    if (parentId) {
+      body.query.bool.must.push(
+        {
+          parent_id: {
+            id: parentId,
+            type: this.type,
+          },
+        }
+      );
+    }
 
     logDetails.granuleId = id;
 
@@ -215,7 +230,7 @@ class BaseSearch {
     const result = await this.client.search({
       index: this.index,
       type: this.type,
-      body: body,
+      body,
     }).then((response) => response.body);
 
     if (result.hits.total > 1) {
@@ -230,8 +245,8 @@ class BaseSearch {
     return resp;
   }
 
-  async exists(id) {
-    const response = await this.get(id);
+  async exists(id, parentId) {
+    const response = await this.get(id, parentId);
     return response.detail !== 'Record not found';
   }
 

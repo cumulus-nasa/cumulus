@@ -211,6 +211,7 @@ test('getTableIndexDetails() returns undefined for unsupported table', (t) => {
 
 test('getTableIndexDetails() returns the correct function name and index type', (t) => {
   t.deepEqual(getTableIndexDetails(process.env.CollectionsTable), {
+    deleteFnName: 'deleteCollection',
     indexFnName: 'indexCollection',
     indexType: 'collection',
   });
@@ -237,7 +238,7 @@ test('performDelete() deletes a record from ES', async (t) => {
   const indexedRecord = await providerIndex.get(provider.id);
   t.is(indexedRecord.id, provider.id);
 
-  await performDelete(esClient, 'provider', provider.id);
+  await performDelete('deleteProvider', esClient, 'provider', provider.id);
   const deletedRecord = await providerIndex.get(provider.id);
   t.is(deletedRecord.detail, 'Record not found');
 });

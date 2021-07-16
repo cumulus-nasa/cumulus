@@ -3,9 +3,6 @@ const sinon = require('sinon');
 
 const {
   getExecutionProcessingTimeInfo,
-  getGranuleProductVolume,
-  getGranuleTimeToArchive,
-  getGranuleTimeToPreprocess,
   moveGranuleFilesAndUpdateDatastore,
 } = require('../../lib/granules');
 
@@ -43,54 +40,6 @@ test('getExecutionProcessingTimeInfo() returns correct object if stopDate is not
       processingStartDateTime: startDate.toISOString(),
       processingEndDateTime: now.toISOString(),
     }
-  );
-});
-
-test('getGranuleTimeToArchive() returns 0 if post_to_cmr_duration is missing from granule', (t) => {
-  t.is(getGranuleTimeToArchive(), 0);
-});
-
-test('getGranuleTimeToArchive() returns correct duration', (t) => {
-  const postToCmrDuration = 5000;
-  t.is(
-    getGranuleTimeToArchive({
-      post_to_cmr_duration: postToCmrDuration,
-    }),
-    5
-  );
-});
-
-test('getGranuleTimeToPreprocess() returns 0 if sync_granule_duration is missing from granule', (t) => {
-  t.is(getGranuleTimeToPreprocess(), 0);
-});
-
-test('getGranuleTimeToPreprocess() returns correct duration', (t) => {
-  const syncGranuleDuration = 3000;
-  t.is(
-    getGranuleTimeToPreprocess({
-      sync_granule_duration: syncGranuleDuration,
-    }),
-    3
-  );
-});
-
-test('getGranuleProductVolume() returns correct product volume', (t) => {
-  t.is(
-    getGranuleProductVolume([{
-      size: 1,
-    }, {
-      size: 2,
-    }]),
-    3
-  );
-
-  t.is(
-    getGranuleProductVolume([{
-      foo: '1',
-    }, {
-      size: 'not-a-number',
-    }]),
-    0
   );
 });
 

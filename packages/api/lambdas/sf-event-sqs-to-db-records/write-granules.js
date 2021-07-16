@@ -13,6 +13,12 @@ const {
   GranulePgModel,
   upsertGranuleWithExecutionJoinRecord,
 } = require('@cumulus/db');
+const {
+  indexGranule,
+} = require('@cumulus/es-client/indexer');
+const {
+  Search,
+} = require('@cumulus/es-client/search');
 const Logger = require('@cumulus/logger');
 const { getCollectionIdFromMessage } = require('@cumulus/message/Collections');
 const {
@@ -20,9 +26,13 @@ const {
   getExecutionUrlFromArn,
 } = require('@cumulus/message/Executions');
 const {
-  getMessageGranules,
-  getGranuleStatus,
+  generateGranuleApiRecord,
+  getGranuleProductVolume,
   getGranuleQueryFields,
+  getGranuleStatus,
+  getGranuleTimeToArchive,
+  getGranuleTimeToPreprocess,
+  getMessageGranules,
   messageHasGranules,
 } = require('@cumulus/message/Granules');
 const {
@@ -41,9 +51,6 @@ const { parseException } = require('@cumulus/message/utils');
 const FileUtils = require('../../lib/FileUtils');
 const {
   getExecutionProcessingTimeInfo,
-  getGranuleTimeToArchive,
-  getGranuleTimeToPreprocess,
-  getGranuleProductVolume,
 } = require('../../lib/granules');
 const Granule = require('../../models/granules');
 
@@ -381,6 +388,51 @@ const _generateFilesFromGranule = async ({
   });
 };
 
+const writeGranuleToDynamoAndEs = async (params) => {
+  const {
+    granule,
+    executionUrl,
+    collectionId,
+    provider,
+    workflowStartTime,
+    error,
+    pdrName,
+    workflowStatus,
+    processingTimeInfo,
+    queryFields,
+    granuleModel,
+    cmrUtils = CmrUtils,
+    updatedAt = Date.now(),
+    esClient = await Search.es(),
+  } = params;
+  const granuleApiRecord = await generateGranuleApiRecord({
+    granule,
+    executionUrl,
+    collectionId,
+    provider,
+    workflowStartTime,
+    error,
+    pdrName,
+    workflowStatus,
+    processingTimeInfo,
+    queryFields,
+    updatedAt,
+    cmrUtils,
+  });
+  try {
+    await granuleModel.storeGranuleFromCumulusMessage(granuleApiRecord);
+    await indexGranule(esClient, granuleApiRecord, process.env.ES_INDEX);
+  } catch (writeError) {
+    // On error, delete the Dynamo record to ensure that all systems
+    // stay in sync
+    await granuleModel.delete({
+      granuleId: granuleApiRecord.granuleId,
+      collectionId: granuleApiRecord.collectionId,
+    });
+    throw writeError;
+  }
+};
+
 /**
  * Write a granule to DynamoDB and PostgreSQL
  *
@@ -427,10 +479,10 @@ const _writeGranule = async ({
   pdrCumulusId,
   granuleModel,
   updatedAt = Date.now(),
+  esClient,
 }) => {
-  const files = await _generateFilesFromGranule({ granule, provider });
-
   let granuleCumulusId;
+  const files = await _generateFilesFromGranule({ granule, provider });
 
   await knex.transaction(async (trx) => {
     granuleCumulusId = await _writeGranuleViaTransaction({
@@ -450,7 +502,7 @@ const _writeGranule = async ({
       files,
     });
 
-    return granuleModel.storeGranuleFromCumulusMessage({
+    return writeGranuleToDynamoAndEs({
       granule,
       executionUrl,
       collectionId,
@@ -461,6 +513,8 @@ const _writeGranule = async ({
       workflowStatus,
       processingTimeInfo,
       queryFields,
+      granuleModel,
+      esClient,
       updatedAt,
     });
   });
@@ -506,6 +560,7 @@ const writeGranules = async ({
   providerCumulusId,
   pdrCumulusId,
   granuleModel = new Granule(),
+  esClient,
 }) => {
   if (!messageHasGranules(cumulusMessage)) {
     logger.info('No granules to write, skipping writeGranules');
@@ -551,6 +606,7 @@ const writeGranules = async ({
       pdrCumulusId,
       knex,
       granuleModel,
+      esClient,
     })
   ));
   const failures = results.filter((result) => result.status === 'rejected');

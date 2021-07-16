@@ -5,7 +5,10 @@ const rewire = require('rewire');
 
 const { randomString } = require('@cumulus/common/test-utils');
 
-const bootstrap = require('../bootstrap');
+const {
+  createTestIndex,
+  cleanupTestIndex,
+} = require('../testUtils');
 const esSearch = rewire('../search');
 
 const { Search } = esSearch;
@@ -13,11 +16,9 @@ const { Search } = esSearch;
 const localEsHost = process.env.LOCAL_ES_HOST;
 
 test.before(async (t) => {
-  t.context.esIndex = randomString();
-  t.context.esAlias = randomString();
-  process.env.ES_INDEX = t.context.esIndex;
-  await bootstrap.bootstrapElasticSearch('fakehost', t.context.esIndex, t.context.esAlias);
-  t.context.esClient = await Search.es('fakehost');
+  const { esIndex, esClient } = await createTestIndex();
+  t.context.esIndex = esIndex;
+  t.context.esClient = esClient;
 
   const awsMock = {
     config: {
@@ -28,6 +29,10 @@ test.before(async (t) => {
     },
   };
   esSearch.__set__('aws', awsMock);
+});
+
+test.after.always(async (t) => {
+  await cleanupTestIndex(t.context);
 });
 
 test.serial('Configured with Metrics host when metrics propety is set', async (t) => {
@@ -120,4 +125,41 @@ test('Search.exists() returns false if record does not exist', async (t) => {
     t.context.esIndex
   );
   t.false(await searchClient.exists(id));
+});
+
+test('Search.get() returns record by parentId', async (t) => {
+  const record = { foo: 'bar' };
+  const id = randomString();
+  const parentId = randomString();
+  const type = 'record';
+  const parentType = 'parent';
+
+  await t.context.esClient.indices.putMapping({
+    index: t.context.esIndex,
+    type,
+    body: {
+      [type]: {
+        _parent: {
+          type: parentType,
+        },
+      },
+    },
+  });
+
+  await t.context.esClient.index({
+    body: record,
+    id,
+    index: t.context.esIndex,
+    parent: parentId,
+    type,
+    refresh: true,
+  });
+
+  const searchClient = new Search(
+    {},
+    type,
+    t.context.esIndex
+  );
+  const result = await searchClient.get(id, parentId);
+  t.like(result, record);
 });

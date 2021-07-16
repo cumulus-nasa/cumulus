@@ -287,25 +287,7 @@ async function deleteRecord({
   if (ignore) options = { ignore };
 
   const actualEsClient = esClient || (await Search.es());
-
-  const getResponse = type === 'granule' ? await actualEsClient.get(params, options) : undefined;
   const deleteResponse = await actualEsClient.delete(params, options);
-
-  if (type === 'granule' && getResponse.body.found) {
-    const doc = getResponse.body._source;
-    doc.timestamp = Date.now();
-    doc.deletedAt = Date.now();
-
-    // When a 'granule' record is deleted, the record is added to 'deletedgranule' type
-    await genericRecordUpdate(
-      actualEsClient,
-      doc.granuleId,
-      doc,
-      index,
-      'deletedgranule',
-      parent
-    );
-  }
   return deleteResponse.body;
 }
 
@@ -444,16 +426,16 @@ function deleteExecution({
   });
 }
 
-/*
-* Deletes the async operation in Elasticsearch
-*
-* @param  {Object} params
-* @param  {Object} params.esClient - Elasticsearch Connection object
-* @param  {string} params.id - the async operation ID
-* @param  {string[]} [params.ignore] - Array of response codes to ignore
-* @param  {string} params.index - Elasticsearch index alias (default defined in search.js)
-* @param  {string} params.type - Elasticsearch type (default: asyncOperation)
-* @returns {Promise} Elasticsearch response
+/**
+ * Deletes the async operation in Elasticsearch
+ *
+ * @param {Object} params
+ * @param {Object} params.esClient - Elasticsearch Connection object
+ * @param {string} params.id - the async operation ID
+ * @param {string[]} [params.ignore] - Array of response codes to ignore
+ * @param {string} params.index - Elasticsearch index alias (default defined in search.js)
+ * @param {string} params.type - Elasticsearch type (default: asyncOperation)
+ * @returns {Promise} Elasticsearch response
 */
 function deleteAsyncOperation({
   esClient,
@@ -465,6 +447,84 @@ function deleteAsyncOperation({
   return deleteRecord({
     esClient,
     id,
+    index,
+    type,
+    ignore,
+  });
+}
+
+/**
+ * Deletes the reconciliation report from Elasticsearch
+ *
+ * @param  {Object} params
+ * @param  {Object} params.esClient - Elasticsearch Connection object
+ * @param  {string} params.name - reconciliation report name
+ * @param  {string[]} [params.ignore] - Array of response codes to ignore
+ * @param  {string} params.index - Elasticsearch index alias (default defined in search.js)
+ * @param  {string} params.type - Elasticsearch type (default: reconciliationReport)
+ * @returns {Promise} Elasticsearch response
+ */
+function deleteReconciliationReport({
+  esClient,
+  name,
+  ignore,
+  index = defaultIndexAlias,
+  type = 'reconciliationReport',
+}) {
+  return deleteRecord({
+    esClient,
+    id: name,
+    index,
+    type,
+    ignore,
+  });
+}
+
+/**
+ * Deletes the granule in Elasticsearch
+ *
+ * @param  {Object} params
+ * @param  {Object} params.esClient - Elasticsearch Connection object
+ * @param  {string} params.granuleId - the granule ID
+ * @param  {string} params.collectionId - the collection ID
+ * @param  {string[]} [params.ignore] - Array of response codes to ignore
+ * @param  {string} params.index - Elasticsearch index alias (default defined in search.js)
+ * @param  {string} params.type - Elasticsearch type (default: granule)
+ * @returns {Promise} Elasticsearch response
+ */
+async function deleteGranule({
+  esClient,
+  granuleId,
+  collectionId,
+  ignore,
+  index = defaultIndexAlias,
+  type = 'granule',
+}) {
+  const esGranulesClient = new Search(
+    {},
+    type,
+    index
+  );
+  const granuleEsRecord = await esGranulesClient.get(granuleId, collectionId);
+
+  // When a 'granule' record is deleted, the record is added to 'deletedgranule' type
+  const deletedGranuleDoc = granuleEsRecord;
+  delete deletedGranuleDoc._id;
+  deletedGranuleDoc.timestamp = Date.now();
+  deletedGranuleDoc.deletedAt = Date.now();
+  await genericRecordUpdate(
+    esClient,
+    granuleId,
+    deletedGranuleDoc,
+    index,
+    'deletedgranule',
+    collectionId
+  );
+
+  return await deleteRecord({
+    esClient,
+    id: granuleId,
+    parent: collectionId,
     index,
     type,
     ignore,
@@ -495,11 +555,13 @@ module.exports = {
   indexExecution,
   indexAsyncOperation,
   deleteRecord,
+  deleteAsyncOperation,
   updateAsyncOperation,
   deleteCollection,
   deleteProvider,
   deleteRule,
   deletePdr,
+  deleteGranule,
   deleteExecution,
-  deleteAsyncOperation,
+  deleteReconciliationReport,
 };

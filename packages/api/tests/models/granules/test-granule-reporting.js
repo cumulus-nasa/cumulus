@@ -1,4 +1,5 @@
 const test = require('ava');
+const sinon = require('sinon');
 
 const S3 = require('@cumulus/aws-client/S3');
 const { randomId } = require('@cumulus/common/test-utils');
@@ -356,7 +357,6 @@ test('_validateAndStoreGranuleRecord() throws an error if trying to update granu
 
 test('storeGranuleFromCumulusMessage() throws an error for a failing record', async (t) => {
   const {
-    collectionId,
     granuleModel,
   } = t.context;
 
@@ -367,20 +367,12 @@ test('storeGranuleFromCumulusMessage() throws an error for a failing record', as
   // cause record to fail
   delete granule1.granuleId;
 
-  await t.throwsAsync(granuleModel.storeGranuleFromCumulusMessage({
-    granule: granule1,
-    executionUrl: 'http://execution-url.com',
-    collectionId,
-  }));
+  await t.throwsAsync(granuleModel.storeGranuleFromCumulusMessage(granule1));
 });
 
 test('storeGranuleFromCumulusMessage() correctly stores granule record', async (t) => {
   const {
     granuleModel,
-    collectionId,
-    provider,
-    workflowStartTime,
-    workflowStatus,
   } = t.context;
 
   const bucket = randomId('bucket-');
@@ -393,14 +385,7 @@ test('storeGranuleFromCumulusMessage() correctly stores granule record', async (
 
   await S3.s3PutObject({ Bucket: bucket, Key: granule1.files[0].key, Body: 'asdf' });
 
-  await granuleModel.storeGranuleFromCumulusMessage({
-    granule: granule1,
-    executionUrl: 'http://execution-url.com',
-    collectionId,
-    provider,
-    workflowStartTime,
-    workflowStatus,
-  });
+  await granuleModel.storeGranuleFromCumulusMessage(granule1);
 
   t.true(await granuleModel.exists({ granuleId: granule1.granuleId }));
 });
@@ -458,7 +443,7 @@ test('storeGranulesFromCumulusMessage() stores multiple granules from Cumulus me
   }
 });
 
-test('storeGranulesFromCumulusMessage() handles failing and succcessful granules independently', async (t) => {
+test.serial('storeGranulesFromCumulusMessage() handles failing and succcessful granules independently', async (t) => {
   const { granuleModel } = t.context;
 
   const bucket = randomId('bucket-');
@@ -468,10 +453,7 @@ test('storeGranulesFromCumulusMessage() handles failing and succcessful granules
   const granule1 = fakeGranuleFactoryV2({
     files: [fakeFileFactory({ bucket })],
   });
-  // Missing files should cause failure to write
-  const granule2 = fakeGranuleFactoryV2({
-    files: undefined,
-  });
+  const granule2 = fakeGranuleFactoryV2();
 
   await S3.s3PutObject({ Bucket: bucket, Key: granule1.files[0].key, Body: 'asdf' });
 
@@ -499,6 +481,12 @@ test('storeGranulesFromCumulusMessage() handles failing and succcessful granules
       ],
     },
   };
+
+  sinon.stub(Granule.prototype, 'storeGranuleFromCumulusMessage')
+    .withArgs(sinon.match({ granuleId: granule2.granuleId }))
+    .rejects(new Error('fail'));
+  Granule.prototype.storeGranuleFromCumulusMessage.callThrough();
+  t.teardown(() => Granule.prototype.storeGranuleFromCumulusMessage.restore());
 
   await granuleModel.storeGranulesFromCumulusMessage(cumulusMessage);
 

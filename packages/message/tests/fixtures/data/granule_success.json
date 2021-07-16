@@ -227,12 +227,14 @@
           {
             "bucket": "cumulus-devseed-public",
             "name": "MOD09GQ.A2016358.h13v04.006.2016360104606_ndvi.jpg",
-            "filename": "s3://cumulus-devseed-public/MOD09GQ.A2016358.h13v04.006.2016360104606_ndvi.jpg"
+            "filename": "s3://cumulus-devseed-public/MOD09GQ.A2016358.h13v04.006.2016360104606_ndvi.jpg",
+            "size": 12345
           },
           {
             "bucket": "cumulus-devseed-public",
             "name": "MOD09GQ.A2016358.h13v04.006.2016360104606.cmr.xml",
-            "filename": "s3://cumulus-devseed-public/MOD09GQ.A2016358.h13v04.006.2016360104606.cmr.xml"
+            "filename": "s3://cumulus-devseed-public/MOD09GQ.A2016358.h13v04.006.2016360104606.cmr.xml",
+            "size": 12345
           }
         ],
         "published": true,

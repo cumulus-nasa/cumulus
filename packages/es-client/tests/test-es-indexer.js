@@ -37,10 +37,10 @@ test.after.always(async () => {
   await s3Utils.recursivelyDeleteS3Bucket(process.env.system_bucket);
 });
 
-test.serial('indexing a deletedgranule record', async (t) => {
+test.serial('deleteGranule deletes granule record and creates deletedgranule record', async (t) => {
   const { esAlias } = t.context;
 
-  const granuletype = 'granule';
+  const granuleType = 'granule';
   const granule = {
     granuleId: randomString(),
   };
@@ -52,17 +52,25 @@ test.serial('indexing a deletedgranule record', async (t) => {
   granule.collectionId = collectionId;
 
   // create granule record
-  let r = await indexer.indexGranule(esClient, granule, esAlias, granuletype);
+  let r = await indexer.indexGranule(esClient, granule, esAlias, granuleType);
   t.is(r.result, 'created');
 
-  r = await indexer.deleteRecord({
+  const esGranulesClient = new Search(
+    {},
+    granuleType,
+    esAlias
+  );
+  t.true(await esGranulesClient.exists(granule.granuleId, collectionId, granuleType));
+
+  r = await indexer.deleteGranule({
     esClient,
-    id: granule.granuleId,
-    type: granuletype,
-    parent: collectionId,
+    granuleId: granule.granuleId,
+    type: granuleType,
+    collectionId,
     index: esAlias,
   });
   t.is(r.result, 'deleted');
+  t.false(await esGranulesClient.exists(granule.granuleId, collectionId, granuleType));
 
   // the deletedgranule record is added
   const deletedGranParams = {
@@ -72,20 +80,20 @@ test.serial('indexing a deletedgranule record', async (t) => {
     parent: collectionId,
   };
 
-  let record = await esClient.get(deletedGranParams)
+  let deletedRecord = await esClient.get(deletedGranParams)
     .then((response) => response.body);
-  t.true(record.found);
-  t.deepEqual(record._source.files, granule.files);
-  t.is(record._parent, collectionId);
-  t.is(record._id, granule.granuleId);
-  t.truthy(record._source.deletedAt);
+  t.true(deletedRecord.found);
+  t.deepEqual(deletedRecord._source.files, granule.files);
+  t.is(deletedRecord._parent, collectionId);
+  t.is(deletedRecord._id, granule.granuleId);
+  t.truthy(deletedRecord._source.deletedAt);
 
-  // the deletedgranule record is removed if the granule is ingested again
-  r = await indexer.indexGranule(esClient, granule, esAlias, granuletype);
+  // the deletedgranule deletedRecord is removed if the granule is ingested again
+  r = await indexer.indexGranule(esClient, granule, esAlias, granuleType);
   t.is(r.result, 'created');
-  record = await esClient.get(deletedGranParams, { ignore: [404] })
+  deletedRecord = await esClient.get(deletedGranParams, { ignore: [404] })
     .then((response) => response.body);
-  t.false(record.found);
+  t.false(deletedRecord.found);
 });
 
 test.serial('creating multiple deletedgranule records and retrieving them', async (t) => {
@@ -112,11 +120,11 @@ test.serial('creating multiple deletedgranule records and retrieving them', asyn
   // now delete the records
   response = await Promise.all(granules
     .map((g) => indexer
-      .deleteRecord({
+      .deleteGranule({
         esClient,
-        id: g.granuleId,
+        granuleId: g.granuleId,
         type: 'granule',
-        parent: g.collectionId,
+        collectionId: g.collectionId,
         index: esAlias,
       })));
   t.is(response.length, 11);
@@ -360,7 +368,7 @@ test.serial('delete a provider record', async (t) => {
   t.false(await esProvidersClient.exists(id));
 });
 
-test.serial('delete an execution record', async (t) => {
+test.serial('deleteExecution deletes an execution record', async (t) => {
   const { esAlias } = t.context;
 
   const testRecord = {
@@ -385,6 +393,66 @@ test.serial('delete an execution record', async (t) => {
   });
 
   t.false(await esExecutionsClient.exists(testRecord.arn));
+});
+
+test.serial('deleteAsyncOperation deletes an async operation record', async (t) => {
+  const { esAlias } = t.context;
+
+  const testRecord = {
+    id: randomString(),
+  };
+  const type = 'asyncOperation';
+
+  let r = await indexer.indexAsyncOperation(esClient, testRecord, esAlias, type);
+
+  // make sure record is created
+  t.is(r.result, 'created');
+  t.is(r._id, testRecord.id);
+  const esAsyncOperationsClient = new Search(
+    {},
+    'asyncOperation',
+    esAlias
+  );
+  t.true(await esAsyncOperationsClient.exists(testRecord.id));
+
+  r = await indexer.deleteAsyncOperation({
+    esClient,
+    id: testRecord.id,
+    type,
+    index: esAlias,
+  });
+
+  t.is(r.result, 'deleted');
+  t.false(await esAsyncOperationsClient.exists(testRecord.id));
+});
+
+test.serial('deleteReconciliationReport deletes a reconciliation report record', async (t) => {
+  const { esAlias } = t.context;
+
+  const testRecord = {
+    name: randomString(),
+  };
+  const type = 'reconciliationReport';
+
+  let r = await indexer.indexReconciliationReport(esClient, testRecord, esAlias, type);
+
+  // make sure record is created
+  t.is(r.result, 'created');
+  t.is(r._id, testRecord.name);
+
+  r = await indexer.deleteReconciliationReport({
+    esClient,
+    name: testRecord.name,
+    type,
+    index: esAlias,
+  });
+
+  t.is(r.result, 'deleted');
+
+  await t.throwsAsync(
+    () => esClient.get({ index: esAlias, type, id: testRecord.name }),
+    { message: 'Response Error' }
+  );
 });
 
 test.serial('indexing a granule record', async (t) => {
@@ -460,32 +528,6 @@ test.serial('updateAsyncOperation updates an async operation record', async (t) 
     id,
   }).then((response) => response.body);
   t.is(updatedRecord._source.status, 'SUCCEEDED');
-});
-
-test.serial('deleting an async operation record', async (t) => {
-  const { esAlias } = t.context;
-
-  const id = randomString();
-  const testRecord = {
-    id,
-  };
-
-  await indexer.indexAsyncOperation(esClient, testRecord, esAlias);
-
-  // check the record exists
-  const esAsyncOperationsClient = new Search(
-    {},
-    'asyncOperation',
-    esAlias
-  );
-  t.true(await esAsyncOperationsClient.exists(id));
-
-  await indexer.deleteAsyncOperation({
-    esClient,
-    id,
-    index: esAlias,
-  });
-  t.false(await esAsyncOperationsClient.exists(id));
 });
 
 test.serial('deleting a collection record', async (t) => {

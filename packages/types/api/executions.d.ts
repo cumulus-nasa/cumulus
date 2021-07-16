@@ -1,5 +1,10 @@
 export type ExecutionRecordStatus = 'completed' | 'failed' | 'running' | 'unknown';
 
+export type ExecutionProcessingTimes = {
+  processingStartDateTime: string
+  processingEndDateTime: string
+} | {};
+
 export interface ExecutionRecord {
   arn: string,
   createdAt: number,

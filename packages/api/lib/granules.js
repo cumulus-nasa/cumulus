@@ -1,6 +1,5 @@
 'use strict';
 
-const isInteger = require('lodash/isInteger');
 const isNil = require('lodash/isNil');
 
 const awsClients = require('@cumulus/aws-client/services');
@@ -55,32 +54,6 @@ const getExecutionProcessingTimeInfo = ({
   }
   return processingTimeInfo;
 };
-
-/* eslint-disable camelcase */
-
-const getGranuleTimeToPreprocess = ({
-  sync_granule_duration = 0,
-} = {}) => sync_granule_duration / 1000;
-
-const getGranuleTimeToArchive = ({
-  post_to_cmr_duration = 0,
-} = {}) => post_to_cmr_duration / 1000;
-
-/* eslint-enable camelcase */
-
-/**
- * Calculate granule product volume, which is the sum of the file
- * sizes in bytes
- *
- * @param {Array<Object>} granuleFiles - array of granule files
- * @returns {Integer} - sum of granule file sizes in bytes
- */
-function getGranuleProductVolume(granuleFiles = []) {
-  return granuleFiles
-    .map((f) => f.size)
-    .filter(isInteger)
-    .reduce((x, y) => x + y, 0);
-}
 
 const renameProperty = (from, to, obj) => {
   const newObj = { ...obj, [to]: obj[from] };
@@ -229,8 +202,5 @@ module.exports = {
   moveGranule,
   translateGranule,
   getExecutionProcessingTimeInfo,
-  getGranuleTimeToArchive,
-  getGranuleTimeToPreprocess,
-  getGranuleProductVolume,
   moveGranuleFilesAndUpdateDatastore,
 };
