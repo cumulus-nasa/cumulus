@@ -23,27 +23,23 @@ const {
 // Dynamo mock data factories
 const {
   fakeGranuleFactoryV2,
-  fakeCollectionFactory,
-} = require('./testUtils');
+} = require('../../lib/testUtils');
 
-const models = require('../models');
+const models = require('../../models');
 
 /**
  * Helper for creating a granule, a parent collection,
  * and files belonging to that granule (in S3 and Postgres)
  * @param {Knex} dbClient - Knex client
- * @param {number} collectionId - collectionId for the granule's parent collection
  * @param {number} collectionCumulusId - cumulus_id for the granule's parent collection
  * @param {boolean} published - if the granule should be marked published to CMR
  * @returns {Object} fake granule object
  */
 async function createGranuleAndFiles({
   dbClient,
-  collectionId,
   collectionCumulusId,
   published = false,
 }) {
-  let newCollectionId;
   let newCollectionCumulusId;
 
   const s3Buckets = {
@@ -70,23 +66,10 @@ async function createGranuleAndFiles({
 
   const collectionName = randomString(5);
   const collectionVersion = randomString(3);
-
-  // If a collectionId for a Dynamo Collection was not passed,
-  // create one to use for the Granule creation
-  if (!collectionId) {
-    const testCollection = fakeCollectionFactory({
-      name: collectionName,
-      version: collectionVersion,
-    });
-
-    const collectionDynamoModel = new models.Collection();
-    const dynamoCollection = await collectionDynamoModel.create(testCollection);
-
-    newCollectionId = constructCollectionId(
-      dynamoCollection.name,
-      dynamoCollection.version
-    );
-  }
+  const newCollectionId = constructCollectionId(
+    collectionName,
+    collectionVersion
+  );
 
   // If a cumulus_id for a Collection was not passed,
   // create one to use for the Granule creation
@@ -126,7 +109,7 @@ async function createGranuleAndFiles({
       granuleId: granuleId,
       status: 'failed',
       published: published,
-      collectionId: collectionId || newCollectionId,
+      collectionId: newCollectionId,
     }
   );
 

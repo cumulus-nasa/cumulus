@@ -36,15 +36,13 @@ const fakeProvider = {
 
 const sqsStub = sinon.stub(SQS, 'sendSQSMessage');
 
-class FakeCollection {
-  get(item) {
-    if (item.name !== fakeCollection.name
-        || item.version !== fakeCollection.version) {
-      return Promise.reject(new Error('Collection could not be found'));
-    }
-    return Promise.resolve(fakeCollection);
+const fakeGetCollection = (item) => {
+  if (item.collectionName !== fakeCollection.name
+      || item.collectionVersion !== fakeCollection.version) {
+    return Promise.reject(new Error('Collection could not be found'));
   }
-}
+  return Promise.resolve(fakeCollection);
+};
 
 const fakeGetProvider = ({ providerId }) => {
   if (providerId !== fakeProvider.id) {
@@ -52,12 +50,10 @@ const fakeGetProvider = ({ providerId }) => {
   }
   return Promise.resolve({ body: JSON.stringify(fakeProvider) });
 };
-
 const getApiProvider = schedule.__get__('getApiProvider');
-const getCollection = schedule.__get__('getCollection');
-
+const getApiCollection = schedule.__get__('getApiCollection');
 const resetProvider = schedule.__set__('getProvider', fakeGetProvider);
-const resetCollection = schedule.__set__('Collection', FakeCollection);
+const resetCollection = schedule.__set__('getCollection', fakeGetCollection);
 
 test.before(() => {
   process.env.defaultSchedulerQueueUrl = defaultQueueUrl;
@@ -83,18 +79,18 @@ test.serial('getApiProvider returns provider when input is a valid provider ID',
   t.deepEqual(JSON.parse(response.body), fakeProvider);
 });
 
-test.serial('getCollection returns undefined when input is falsey', async (t) => {
-  const response = await getCollection(undefined);
+test.serial('getApiCollection returns undefined when input is falsey', async (t) => {
+  const response = await getApiCollection(undefined);
   t.is(response, undefined);
 });
 
-test.serial('getCollection returns collection when input is a valid collection name/version', async (t) => {
+test.serial('getApiCollection returns collection when input is a valid collection name/version', async (t) => {
   const collectionInput = {
     name: fakeCollection.name,
     version: fakeCollection.version,
   };
 
-  const response = await getCollection(collectionInput);
+  const response = await getApiCollection(collectionInput);
 
   t.deepEqual(response, fakeCollection);
 });

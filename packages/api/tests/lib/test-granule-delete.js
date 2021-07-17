@@ -30,25 +30,20 @@ const { randomId, randomString } = require('@cumulus/common/test-utils');
 const models = require('../../models');
 
 // Dynamo mock data factories
-const {
-  fakeCollectionFactory,
-  fakeGranuleFactoryV2,
-} = require('../../lib/testUtils');
+const { fakeGranuleFactoryV2 } = require('../../lib/testUtils');
 
 const { deleteGranuleAndFiles } = require('../../src/lib/granule-delete');
 
 const { migrationDir } = require('../../../../lambdas/db-migration');
 
-const { createGranuleAndFiles } = require('../../lib/create-test-data');
+const { createGranuleAndFiles } = require('../helpers/create-test-data');
 
 const testDbName = `granules_${cryptoRandomString({ length: 10 })}`;
 
-let collectionModel;
 let filePgModel;
 let granuleModel;
 let granulePgModel;
 
-process.env.CollectionsTable = randomId('collection');
 process.env.GranulesTable = randomId('granules');
 process.env.stackName = randomId('stackname');
 process.env.system_bucket = randomId('systembucket');
@@ -64,10 +59,6 @@ test.before(async (t) => {
   // create a fake bucket
   await createBucket(process.env.system_bucket);
 
-  // create fake Collections table
-  collectionModel = new models.Collection();
-  await collectionModel.createTable();
-
   // create fake Granules table
   granuleModel = new models.Granule();
   await granuleModel.createTable();
@@ -78,15 +69,6 @@ test.before(async (t) => {
   const { knex, knexAdmin } = await generateLocalTestDb(testDbName, migrationDir);
   t.context.knex = knex;
   t.context.knexAdmin = knexAdmin;
-
-  // Create a Dynamo collection
-  // we need this because a granule has a fk referring to collections
-  t.context.testCollection = fakeCollectionFactory({
-    name: 'fakeCollection',
-    version: 'v1',
-    duplicateHandling: 'error',
-  });
-  await collectionModel.create(t.context.testCollection);
 
   // Create a Postgres Collection
   const testPgCollection = fakeCollectionRecordFactory();
@@ -100,7 +82,6 @@ test.before(async (t) => {
 test.serial('deleteGranuleAndFiles() throws an error if the granule is published', async (t) => {
   const { newPgGranule, newDynamoGranule, s3Buckets } = await createGranuleAndFiles({
     dbClient: t.context.knex,
-    collectionId: t.context.collectionId,
     collectionCumulusId: t.context.collectionCumulusId,
     published: true,
   });
@@ -132,7 +113,6 @@ test.serial('deleteGranuleAndFiles() removes granule and files from Postgres, Dy
     s3Buckets,
   } = await createGranuleAndFiles({
     dbClient: t.context.knex,
-    collectionId: t.context.collectionId,
     collectionCumulusId: t.context.collectionCumulusId,
     published: false,
   });
@@ -213,7 +193,6 @@ test.serial('deleteGranuleAndFiles() will not delete a granule or its S3 files i
     s3Buckets,
   } = await createGranuleAndFiles({
     dbClient: t.context.knex,
-    collectionId: t.context.collectionId,
     collectionCumulusId: t.context.collectionCumulusId,
     published: false,
   });
@@ -261,7 +240,6 @@ test.serial('deleteGranuleAndFiles() will not delete Postgres or S3 Files if the
     s3Buckets,
   } = await createGranuleAndFiles({
     dbClient: t.context.knex,
-    collectionId: t.context.collectionId,
     collectionCumulusId: t.context.collectionCumulusId,
     published: false,
   });
@@ -309,7 +287,6 @@ test.serial('deleteGranuleAndFiles() will not delete Postgres granule if the Dyn
     s3Buckets,
   } = await createGranuleAndFiles({
     dbClient: t.context.knex,
-    collectionId: t.context.collectionId,
     collectionCumulusId: t.context.collectionCumulusId,
     published: false,
   });

@@ -14,9 +14,15 @@ const { constructCollectionId } = require('@cumulus/message/Collections');
 const { s3 } = require('@cumulus/aws-client/services');
 const { RecordDoesNotExist } = require('@cumulus/errors');
 const { ESSearchQueue } = require('@cumulus/es-client/esSearchQueue');
-const { Collection, Granule } = require('../models');
 const {
-  convertToDBCollectionSearchParams,
+  CollectionPgModel,
+  translatePostgresCollectionToApiCollection,
+  getKnexClient,
+} = require('@cumulus/db');
+
+const { Granule } = require('../models');
+const {
+  convertToDBCollectionSearchObject,
   convertToESCollectionSearchParams,
   convertToESGranuleSearchParams,
   convertToDBGranuleSearchParams,
@@ -39,7 +45,7 @@ async function internalRecReportForCollections(recReportParams) {
   // compare collection holdings:
   //   Get collection list in ES ordered by granuleId
   //   Get collection list in DynamoDB ordered by granuleId
-  //   Report collections only in ES
+  //  Report collections only in ES
   //   Report collections only in DynamoDB
   //   Report collections with different contents
 
@@ -48,10 +54,18 @@ async function internalRecReportForCollections(recReportParams) {
     { ...searchParams, sort_key: ['name', 'version'] }, 'collection', process.env.ES_INDEX
   );
 
+  const collectionPgModel = new CollectionPgModel();
+  const knex = await getKnexClient();
+
   // get collections from database and sort them, since the scan result is not ordered
-  const dbSearchParams = convertToDBCollectionSearchParams(recReportParams);
-  const dbCollectionsQueue = (new Collection()).search(dbSearchParams);
-  const dbCollectionsSearched = await dbCollectionsQueue.empty();
+  const [updatedAtRangeParams, dbSearchParams] = convertToDBCollectionSearchObject(recReportParams);
+
+  const dbCollectionsSearched = await collectionPgModel.searchWithUpdatedAtRange(
+    knex,
+    dbSearchParams,
+    updatedAtRangeParams
+  );
+
   const dbCollectionItems = sortBy(
     filterDBCollections(dbCollectionsSearched, recReportParams),
     ['name', 'version']
@@ -80,7 +94,15 @@ async function internalRecReportForCollections(recReportParams) {
       dbCollectionItems.shift();
     } else {
       // Found an item that is in both ES and DB
-      if (isEqual(omit(nextEsItem, fieldsIgnored), omit(nextDbItem, fieldsIgnored))) {
+      if (
+        isEqual(
+          omit(nextEsItem, fieldsIgnored),
+          omit(
+            translatePostgresCollectionToApiCollection(nextDbItem),
+            fieldsIgnored
+          )
+        )
+      ) {
         okCount += 1;
       } else {
         withConflicts.push({ es: nextEsItem, db: nextDbItem });
@@ -114,7 +136,10 @@ exports.internalRecReportForCollections = internalRecReportForCollections;
  * @returns {Promise<Array<string>>} list of collectionIds
  */
 async function getAllCollections() {
-  const dbCollections = (await new Collection().getAllCollections())
+  const collectionPgModel = new CollectionPgModel();
+  const knex = await getKnexClient();
+
+  const dbCollections = (await collectionPgModel.search(knex, {}))
     .map((collection) => constructCollectionId(collection.name, collection.version));
 
   const esCollectionsIterator = new ESSearchQueue(
@@ -298,6 +323,7 @@ exports.internalRecReportForGranules = internalRecReportForGranules;
  * Create a Internal Reconciliation report and save it to S3
  *
  * @param {Object} recReportParams - params
+ * @param {Object} params.collectionIds - array of collectionIds
  * @param {Object} recReportParams.reportType - the report type
  * @param {moment} recReportParams.createStartTime - when the report creation was begun
  * @param {moment} recReportParams.endTimestamp - ending report datetime ISO Timestamp

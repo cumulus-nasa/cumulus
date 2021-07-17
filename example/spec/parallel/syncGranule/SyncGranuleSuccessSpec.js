@@ -87,9 +87,6 @@ describe('The Sync Granules workflow', () => {
     provider = { id: `s3_provider${testSuffix}` };
     const newCollectionId = constructCollectionId(collection.name, collection.version);
 
-    process.env.ExecutionsTable = `${config.stackName}-ExecutionsTable`;
-    process.env.CollectionsTable = `${config.stackName}-CollectionsTable`;
-
     // populate collections, providers and test data
     await Promise.all([
       uploadTestDataToBucket(config.bucket, s3data, testDataFolder),

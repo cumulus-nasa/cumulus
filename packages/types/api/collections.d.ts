@@ -24,7 +24,7 @@ export interface PartialCollectionRecord {
   reportToEms?: boolean,
   sampleFileName?: string,
   tags?: string[],
-  meta?: Object,
+  meta?: object,
   url_path?: string,
   version?: string,
   createdAt?: number,

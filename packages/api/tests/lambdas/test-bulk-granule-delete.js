@@ -7,8 +7,7 @@ const { randomId } = require('@cumulus/common/test-utils');
 
 const { bulkGranuleDelete } = require('../../lambdas/bulk-operation');
 const Granule = require('../../models/granules');
-const { createGranuleAndFiles } = require('../../lib/create-test-data');
-const models = require('../../models');
+const { createGranuleAndFiles } = require('../helpers/create-test-data');
 const { migrationDir } = require('../../../../lambdas/db-migration');
 
 const testDbName = `${cryptoRandomString({ length: 10 })}`;
@@ -22,7 +21,6 @@ const getGranuleCumulusId = (dynamoGranule, granules) => {
 
 test.before(async (t) => {
   process.env.GranulesTable = randomId('granule');
-  process.env.CollectionsTable = randomId('collection');
   process.env.system_bucket = randomId('bucket');
   process.env = {
     ...process.env,
@@ -33,7 +31,6 @@ test.before(async (t) => {
   // create a fake bucket
   await createBucket(process.env.system_bucket);
 
-  await new models.Collection().createTable();
   await new Granule().createTable();
 
   const { knex, knexAdmin } = await generateLocalTestDb(testDbName, migrationDir);
@@ -46,8 +43,14 @@ test('bulkGranuleDelete does not fail on published granules if payload.forceRemo
   const granulePgModel = new GranulePgModel();
 
   const granules = await Promise.all([
-    createGranuleAndFiles({ dbClient: t.context.knex, published: true }),
-    createGranuleAndFiles({ dbClient: t.context.knex, published: true }),
+    createGranuleAndFiles({
+      dbClient: t.context.knex,
+      published: true,
+    }),
+    createGranuleAndFiles({
+      dbClient: t.context.knex,
+      published: true,
+    }),
   ]);
 
   const dynamoGranuleId1 = granules[0].newDynamoGranule.granuleId;

@@ -1,14 +1,15 @@
 'use strict';
 
-const pMap = require('p-map');
-const test = require('ava');
-const moment = require('moment');
+const cryptoRandomString = require('crypto-random-string');
 const flatten = require('lodash/flatten');
 const map = require('lodash/map');
+const moment = require('moment');
+const pMap = require('p-map');
 const range = require('lodash/range');
 const sample = require('lodash/sample');
-const sortBy = require('lodash/sortBy');
 const sinon = require('sinon');
+const sortBy = require('lodash/sortBy');
+const test = require('ava');
 
 const { CMR, CMRSearchConceptQueue } = require('@cumulus/cmr-client');
 const {
@@ -25,6 +26,15 @@ const indexer = require('@cumulus/es-client/indexer');
 const { Search } = require('@cumulus/es-client/search');
 
 const { bootstrapElasticSearch } = require('@cumulus/es-client/bootstrap');
+const {
+  CollectionPgModel,
+  destroyLocalTestDb,
+  generateLocalTestDb,
+  localStackConnectionEnv,
+  translateApiCollectionToPostgresCollection,
+} = require('@cumulus/db');
+
+const { migrationDir } = require('../../../../lambdas/db-migration');
 const { fakeCollectionFactory, fakeGranuleFactoryV2 } = require('../../lib/testUtils');
 const GranuleFilesCache = require('../../lib/GranuleFilesCache');
 const {
@@ -41,6 +51,7 @@ let esIndex;
 let esClient;
 
 const createBucket = (Bucket) => awsServices.s3().createBucket({ Bucket }).promise();
+const testDbName = `data_migration_1_${cryptoRandomString({ length: 10 })}`;
 
 function createDistributionBucketMapFromBuckets(buckets) {
   let bucketMap = {};
@@ -310,12 +321,20 @@ const setupElasticAndCMRForTests = async ({ t, params = {} }) => {
   };
 };
 
-test.before(async () => {
+test.before(async (t) => {
+  process.env = {
+    ...process.env,
+    ...localStackConnectionEnv,
+    PG_DATABASE: testDbName,
+  };
   process.env.cmr_password_secret_name = randomId('cmr-secret-name');
   await awsServices.secretsManager().createSecret({
     Name: process.env.cmr_password_secret_name,
     SecretString: randomId('cmr-password'),
   }).promise();
+  const { knex, knexAdmin } = await generateLocalTestDb(testDbName, migrationDir);
+  t.context.knex = knex;
+  t.context.knexAdmin = knexAdmin;
 });
 
 test.beforeEach(async (t) => {
@@ -364,12 +383,17 @@ test.afterEach.always(async (t) => {
   await esClient.indices.delete({ index: esIndex });
 });
 
-test.after.always(async () => {
+test.after.always(async (t) => {
   await awsServices.secretsManager().deleteSecret({
     SecretId: process.env.cmr_password_secret_name,
     ForceDeleteWithoutRecovery: true,
   }).promise();
   delete process.env.cmr_password_secret_name;
+  await destroyLocalTestDb({
+    knex: t.context.knex,
+    knexAdmin: t.context.knexAdmin,
+    testDbName,
+  });
 });
 
 test.serial('Generates valid reconciliation report for no buckets', async (t) => {
@@ -1705,6 +1729,16 @@ test.serial('A valid internal reconciliation report is generated when ES and DB 
     matchingColls.map((collection) => indexer.indexCollection(esClient, collection, esAlias))
   );
   await new models.Collection().create(matchingColls);
+
+  const collectionPgModel = new CollectionPgModel();
+  await Promise.all(
+    matchingColls.map((collection) =>
+      collectionPgModel.create(
+        t.context.knex,
+        translateApiCollectionToPostgresCollection(collection)
+      ))
+  );
+
   await Promise.all(
     matchingGrans.map((gran) => indexer.indexGranule(esClient, gran, esAlias))
   );

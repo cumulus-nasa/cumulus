@@ -54,7 +54,7 @@ const {
 const assertions = require('../../lib/assertions');
 const models = require('../../models');
 
-const { createGranuleAndFiles } = require('../../lib/create-test-data');
+const { createGranuleAndFiles } = require('../helpers/create-test-data');
 
 // Dynamo mock data factories
 const {
@@ -78,7 +78,6 @@ const {
 const testDbName = `granules_${cryptoRandomString({ length: 10 })}`;
 
 let accessTokenModel;
-let collectionModel;
 let esClient;
 let esIndex;
 let filePgModel;
@@ -88,7 +87,6 @@ let jwtAuthToken;
 
 process.env.AccessTokensTable = randomId('token');
 process.env.AsyncOperationsTable = randomId('async');
-process.env.CollectionsTable = randomId('collection');
 process.env.GranulesTable = randomId('granules');
 process.env.stackName = randomId('stackname');
 process.env.system_bucket = randomId('systembucket');
@@ -166,10 +164,6 @@ test.before(async (t) => {
   const tKey = `${process.env.stackName}/workflow_template.json`;
   await s3PutObject({ Bucket: process.env.system_bucket, Key: tKey, Body: '{}' });
 
-  // create fake Collections table
-  collectionModel = new models.Collection();
-  await collectionModel.createTable();
-
   // create fake Granules table
   granuleModel = new models.Granule();
   await granuleModel.createTable();
@@ -215,10 +209,9 @@ test.before(async (t) => {
     version: collectionVersion,
     duplicateHandling: 'error',
   });
-  const dynamoCollection = await collectionModel.create(t.context.testCollection);
   t.context.collectionId = constructCollectionId(
-    dynamoCollection.name,
-    dynamoCollection.version
+    collectionName,
+    collectionVersion
   );
 
   const testPgCollection = fakeCollectionRecordFactory({
@@ -271,7 +264,6 @@ test.beforeEach(async (t) => {
 });
 
 test.after.always(async (t) => {
-  await collectionModel.deleteTable();
   await granuleModel.deleteTable();
   await accessTokenModel.deleteTable();
   await esClient.indices.delete({ index: esIndex });

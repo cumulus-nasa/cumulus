@@ -2,20 +2,26 @@
 
 const test = require('ava');
 const request = require('supertest');
-const sinon = require('sinon');
+
 const awsServices = require('@cumulus/aws-client/services');
 const {
   recursivelyDeleteS3Bucket,
 } = require('@cumulus/aws-client/S3');
 const { randomString } = require('@cumulus/common/test-utils');
 const { bootstrapElasticSearch } = require('@cumulus/es-client/bootstrap');
-const EsCollection = require('@cumulus/es-client/collections');
 const { Search } = require('@cumulus/es-client/search');
+const {
+  localStackConnectionEnv,
+  generateLocalTestDb,
+  destroyLocalTestDb,
+  CollectionPgModel,
+  fakeCollectionRecordFactory,
+} = require('@cumulus/db');
 
+const { migrationDir } = require('../../../../../lambdas/db-migration');
 const models = require('../../../models');
 const {
   createFakeJwtAuthToken,
-  fakeCollectionFactory,
   setAuthorizedOAuthUsers,
 } = require('../../../lib/testUtils');
 const assertions = require('../../../lib/assertions');
@@ -36,7 +42,19 @@ let jwtAuthToken;
 let accessTokenModel;
 let collectionModel;
 
-test.before(async () => {
+const testDbName = randomString(12);
+
+test.before(async (t) => {
+  process.env = {
+    ...process.env,
+    ...localStackConnectionEnv,
+    PG_DATABASE: testDbName,
+  };
+  const { knex, knexAdmin } = await generateLocalTestDb(testDbName, migrationDir);
+  t.context.knex = knex;
+  t.context.knexAdmin = knexAdmin;
+  t.context.collectionPgModel = new CollectionPgModel();
+
   const esAlias = randomString();
   process.env.ES_INDEX = esAlias;
   await bootstrapElasticSearch('fakehost', esIndex, esAlias);
@@ -58,18 +76,26 @@ test.before(async () => {
 });
 
 test.beforeEach(async (t) => {
-  t.context.testCollection = fakeCollectionFactory();
-  await collectionModel.create(t.context.testCollection);
+  t.context.testCollection = fakeCollectionRecordFactory();
+  await t.context.collectionPgModel.create(
+    t.context.knex,
+    t.context.testCollection
+  );
 });
 
-test.after.always(async () => {
+test.after.always(async (t) => {
   await accessTokenModel.deleteTable();
   await collectionModel.deleteTable();
   await recursivelyDeleteS3Bucket(process.env.system_bucket);
   await esClient.indices.delete({ index: esIndex });
+  await destroyLocalTestDb({
+    knex: t.context.knex,
+    knexAdmin: t.context.knexAdmin,
+    testDbName,
+  });
 });
 
-test('CUMULUS-911 GET with pathParameters and without an Authorization header returns an Authorization Missing response', async (t) => {
+test('GET with pathParameters and without an Authorization header returns an Authorization Missing response', async (t) => {
   const response = await request(app)
     .get('/collections/asdf/asdf')
     .set('Accept', 'application/json')
@@ -78,7 +104,7 @@ test('CUMULUS-911 GET with pathParameters and without an Authorization header re
   assertions.isAuthorizationMissingResponse(t, response);
 });
 
-test('CUMULUS-912 GET with pathParameters and with an invalid access token returns an unauthorized response', async (t) => {
+test('GET with pathParameters and with an invalid access token returns an unauthorized response', async (t) => {
   const response = await request(app)
     .get('/collections/asdf/asdf')
     .set('Accept', 'application/json')
@@ -88,19 +114,26 @@ test('CUMULUS-912 GET with pathParameters and with an invalid access token retur
   assertions.isInvalidAccessTokenResponse(t, response);
 });
 
-test.todo('CUMULUS-912 GET with pathParameters and with an unauthorized user returns an unauthorized response');
-
-test.serial('GET returns an existing collection', async (t) => {
-  const stub = sinon.stub(EsCollection.prototype, 'getStats').returns([t.context.testCollection]);
+test('GET returns an existing collection', async (t) => {
+  const { testCollection } = t.context;
   const response = await request(app)
     .get(`/collections/${t.context.testCollection.name}/${t.context.testCollection.version}`)
     .set('Accept', 'application/json')
     .set('Authorization', `Bearer ${jwtAuthToken}`)
     .expect(200);
 
-  const { name } = response.body;
-  stub.restore();
-  t.is(name, t.context.testCollection.name);
+  const expected = {
+    granuleId: testCollection.granule_id_validation_regex,
+    granuleIdExtraction: testCollection.granule_id_extraction_regex,
+    sampleFileName: testCollection.sample_file_name,
+    files: JSON.parse(testCollection.files),
+    name: testCollection.name,
+    version: testCollection.version,
+    createdAt: response.body.createdAt,
+    updatedAt: response.body.updatedAt,
+    meta: testCollection.meta,
+  };
+  t.deepEqual(response.body, expected);
 });
 
 test('CUMULUS-176 GET without a version returns a 404', async (t) => {

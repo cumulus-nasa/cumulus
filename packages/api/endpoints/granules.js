@@ -15,6 +15,7 @@ const {
   CollectionPgModel,
   getKnexClient,
   GranulePgModel,
+  translateApiCollectionToPostgresCollection,
 } = require('@cumulus/db');
 
 const Search = require('@cumulus/es-client/search').Search;
@@ -27,7 +28,6 @@ const { deconstructCollectionId } = require('../lib/utils');
 const { moveGranule } = require('../lib/granules');
 const { unpublishGranule } = require('../lib/granule-remove-from-cmr');
 const { addOrcaRecoveryStatus, getOrcaRecoveryStatusByGranuleId } = require('../lib/orca');
-
 /**
  * List all granules for a given collection.
  *
@@ -72,10 +72,12 @@ async function put(req, res) {
   const granule = await granuleModelClient.get({ granuleId });
 
   if (action === 'reingest') {
+    const collectionPgModel = new CollectionPgModel();
+    const knex = await getKnexClient();
     const { name, version } = deconstructCollectionId(granule.collectionId);
-    const collectionModelClient = new models.Collection();
-    const collection = await collectionModelClient.get({ name, version });
-
+    const collection = translateApiCollectionToPostgresCollection(
+      await collectionPgModel.get(knex, { name, version })
+    );
     await granuleModelClient.reingest({
       ...granule,
       queueUrl: process.env.backgroundQueueUrl,

@@ -60,7 +60,12 @@ export { translateApiAsyncOperationToPostgresAsyncOperation } from './translate/
 export {
   translateApiFiletoPostgresFile,
 } from './translate/file';
-export { translateApiCollectionToPostgresCollection } from './translate/collections';
+
+export {
+  translateApiCollectionToPostgresCollection,
+  translatePostgresCollectionToApiCollection,
+} from './translate/collections';
+
 export {
   translateApiProviderToPostgresProvider,
   translatePostgresProviderToApiProvider,

@@ -109,7 +109,7 @@ export const getCollection = async (params: {
 };
 
 /**
- * Get a list of collection from Cumulus via the API lambda
+ * Get a list of collections from Cumulus via the API lambda
  * GET /collections
  *
  * @param {Object} params                     - params

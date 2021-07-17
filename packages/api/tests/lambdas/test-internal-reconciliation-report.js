@@ -4,6 +4,8 @@ const test = require('ava');
 const moment = require('moment');
 const flatten = require('lodash/flatten');
 const range = require('lodash/range');
+const cryptoRandomString = require('crypto-random-string');
+
 const {
   recursivelyDeleteS3Bucket,
 } = require('@cumulus/aws-client/S3');
@@ -14,6 +16,14 @@ const { bootstrapElasticSearch } = require('@cumulus/es-client/bootstrap');
 const indexer = require('@cumulus/es-client/indexer');
 const { Search } = require('@cumulus/es-client/search');
 
+const {
+  CollectionPgModel,
+  destroyLocalTestDb,
+  generateLocalTestDb,
+  localStackConnectionEnv,
+  translateApiCollectionToPostgresCollection,
+} = require('@cumulus/db');
+
 const { fakeCollectionFactory, fakeGranuleFactoryV2 } = require('../../lib/testUtils');
 const {
   internalRecReportForCollections,
@@ -22,13 +32,13 @@ const {
 const { normalizeEvent } = require('../../lib/reconciliationReport/normalizeEvent');
 const models = require('../../models');
 const { deconstructCollectionId } = require('../../lib/utils');
+const { migrationDir } = require('../../../../lambdas/db-migration');
 
 let esAlias;
 let esIndex;
 let esClient;
 
 test.beforeEach(async (t) => {
-  process.env.CollectionsTable = randomId('collectionTable');
   process.env.GranulesTable = randomId('granulesTable');
   process.env.ReconciliationReportsTable = randomId('reconciliationTable');
 
@@ -40,7 +50,6 @@ test.beforeEach(async (t) => {
   await awsServices.s3().createBucket({ Bucket: t.context.systemBucket }).promise()
     .then(() => t.context.bucketsToCleanup.push(t.context.systemBucket));
 
-  await new models.Collection().createTable();
   await new models.Granule().createTable();
   await new models.ReconciliationReport().createTable();
 
@@ -49,13 +58,28 @@ test.beforeEach(async (t) => {
   process.env.ES_INDEX = esAlias;
   await bootstrapElasticSearch('fakehost', esIndex, esAlias);
   esClient = await Search.es();
+
+  t.context.testDbName = `test_internal_recon_${cryptoRandomString({ length: 10 })}`;
+  const { knex, knexAdmin } = await generateLocalTestDb(t.context.testDbName, migrationDir);
+  t.context.knex = knex;
+  t.context.knexAdmin = knexAdmin;
+  process.env = {
+    ...process.env,
+    ...localStackConnectionEnv,
+    PG_DATABASE: t.context.testDbName,
+  };
+  t.context.collectionPgModel = new CollectionPgModel();
 });
 
 test.afterEach.always(async (t) => {
+  await destroyLocalTestDb({
+    knex: t.context.knex,
+    knexAdmin: t.context.knexAdmin,
+    testDbName: t.context.testDbName,
+  });
   await Promise.all(
     flatten([
       t.context.bucketsToCleanup.map(recursivelyDeleteS3Bucket),
-      new models.Collection().deleteTable(),
       new models.Granule().deleteTable(),
       new models.ReconciliationReport().deleteTable(),
     ])
@@ -64,6 +88,8 @@ test.afterEach.always(async (t) => {
 });
 
 test.serial('internalRecReportForCollections reports discrepancy of collection holdings in ES and DB', async (t) => {
+  const { knex, collectionPgModel } = t.context;
+
   const matchingColls = range(10).map(() => fakeCollectionFactory());
   const extraDbColls = range(2).map(() => fakeCollectionFactory());
   const extraEsColls = range(2).map(() => fakeCollectionFactory());
@@ -77,7 +103,14 @@ test.serial('internalRecReportForCollections reports discrepancy of collection h
   await Promise.all(
     esCollections.map((collection) => indexer.indexCollection(esClient, collection, esAlias))
   );
-  await new models.Collection().create(dbCollections);
+
+  await Promise.all(
+    dbCollections.map((collection) =>
+      collectionPgModel.create(
+        knex,
+        translateApiCollectionToPostgresCollection(collection)
+      ))
+  );
 
   let report = await internalRecReportForCollections({});
 
@@ -127,6 +160,7 @@ test.serial('internalRecReportForCollections reports discrepancy of collection h
 });
 
 test.serial('internalRecReportForGranules reports discrepancy of granule holdings in ES and DB', async (t) => {
+  const { knex, collectionPgModel } = t.context;
   const collectionId = constructCollectionId(randomId('name'), randomId('version'));
   const provider = randomId('provider');
 
@@ -151,7 +185,10 @@ test.serial('internalRecReportForGranules reports discrepancy of granule holding
       await indexer.indexGranule(esClient, gran, esAlias);
       const collection = fakeCollectionFactory({ ...deconstructCollectionId(gran.collectionId) });
       await indexer.indexCollection(esClient, collection, esAlias);
-      await new models.Collection().create(collection);
+      await collectionPgModel.upsert(
+        knex,
+        translateApiCollectionToPostgresCollection(collection)
+      );
     })
   );
 

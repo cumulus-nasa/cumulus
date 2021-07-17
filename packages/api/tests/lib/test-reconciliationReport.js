@@ -6,7 +6,7 @@ const { constructCollectionId } = require('@cumulus/message/Collections');
 
 const sortBy = require('lodash/sortBy');
 const {
-  convertToDBCollectionSearchParams,
+  convertToDBCollectionSearchObject,
   convertToESCollectionSearchParams,
   convertToESGranuleSearchParams,
   filterCMRCollections,
@@ -106,14 +106,15 @@ test('convertToDBCollectionSearchParams returns correct search object with colle
     anotherKey2: 'they are ignored',
   };
 
-  const expected = {
-    updatedAt__from: 973004400000,
-    updatedAt__to: 1004540400000,
+  const expected = [{
+    updatedAtFrom: new Date(startTimestamp),
+    updatedAtTo: new Date(endTimestamp),
+  }, {
     name: 'name',
     version: 'version',
-  };
+  }];
 
-  const actual = convertToDBCollectionSearchParams(testObj);
+  const actual = convertToDBCollectionSearchObject(testObj);
   t.deepEqual(actual, expected);
 });
 
@@ -129,12 +130,12 @@ test('convertToDBCollectionSearchParams ignores collectionIds when there are mul
     anotherKey2: 'they are ignored',
   };
 
-  const expected = {
-    updatedAt__from: 973004400000,
-    updatedAt__to: 1004540400000,
-  };
+  const expected = [{
+    updatedAtFrom: new Date(startTimestamp),
+    updatedAtTo: new Date(endTimestamp),
+  }, {}];
 
-  const actual = convertToDBCollectionSearchParams(testObj);
+  const actual = convertToDBCollectionSearchObject(testObj);
   t.deepEqual(actual, expected);
 });
 

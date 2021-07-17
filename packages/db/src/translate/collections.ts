@@ -1,6 +1,37 @@
-import { NewCollectionRecord } from '@cumulus/types/api/collections';
-import { PostgresCollection } from '../types/collection';
+import { NewCollectionRecord, CollectionRecord } from '@cumulus/types/api/collections';
+import { PostgresCollection, PostgresCollectionRecord } from '../types/collection';
+const { removeNilProperties } = require('@cumulus/common/util');
 
+/**
+* Translates a PostgresCollectionRecord object to a `CollectionRecord` API collection object
+* @param {PostgresCollectionRecord} collectionRecord - PostgreSQL collection record to translate
+* @returns {CollectionRecord} - Translated record
+*/
+export const translatePostgresCollectionToApiCollection = (
+  collectionRecord: PostgresCollectionRecord
+): CollectionRecord => removeNilProperties(({
+  createdAt: collectionRecord.created_at.getTime(),
+  updatedAt: collectionRecord.updated_at.getTime(),
+  name: collectionRecord.name,
+  version: collectionRecord.version,
+  process: collectionRecord.process,
+  url_path: collectionRecord.url_path,
+  duplicateHandling: collectionRecord.duplicate_handling,
+  granuleId: collectionRecord.granule_id_validation_regex,
+  granuleIdExtraction: collectionRecord.granule_id_extraction_regex,
+  files: collectionRecord.files,
+  reportToEms: collectionRecord.report_to_ems,
+  sampleFileName: collectionRecord.sample_file_name,
+  ignoreFilesConfigForDiscovery: collectionRecord.ignore_files_config_for_discovery,
+  meta: collectionRecord.meta,
+  tags: collectionRecord.tags,
+}));
+
+/**
+* Translates a NewCollectionRecord API collection object to a `PostgresCollectionRecord` object
+* @param {NewCollectionRecord} record - API collection record to translate
+* @returns {PostgresCollectionRecord} - Translated record
+*/
 export const translateApiCollectionToPostgresCollection = (
   record: NewCollectionRecord
 ): PostgresCollection => {
@@ -18,7 +49,7 @@ export const translateApiCollectionToPostgresCollection = (
     report_to_ems: record.reportToEms,
     sample_file_name: record.sampleFileName,
     ignore_files_config_for_discovery: record.ignoreFilesConfigForDiscovery,
-    meta: (record.meta ? JSON.stringify(record.meta) : undefined),
+    meta: record.meta,
     // have to stringify on an array of values
     tags: (record.tags ? JSON.stringify(record.tags) : undefined),
   };

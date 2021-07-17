@@ -39,7 +39,7 @@ const isDataBucket = (bucketConfig) => ['private', 'public', 'protected'].includ
 
 /**
  *
- * @param {string} reportType - reconciation report type
+ * @param {string} reportType - reconciliation report type
  * @returns {boolean} - Whether or not to include the link between files and
  * granules in the report.
  */

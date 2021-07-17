@@ -9,9 +9,7 @@ const { randomString } = require('@cumulus/common/test-utils');
 const { s3, sns } = require('@cumulus/aws-client/services');
 const { recursivelyDeleteS3Bucket } = require('@cumulus/aws-client/S3');
 
-const Collection = require('../../models/collections');
 const Rule = require('../../models/rules');
-const Provider = require('../../models/providers');
 
 const sandbox = sinon.createSandbox();
 const queueMessageStub = sandbox.stub().resolves(true);
@@ -93,8 +91,6 @@ let ruleModel;
 let templateBucket;
 
 test.before(async () => {
-  process.env.CollectionsTable = randomString();
-  process.env.ProvidersTable = randomString();
   process.env.RulesTable = randomString();
   process.env.messageConsumer = 'my-messageConsumer';
   process.env.KinesisInboundEventLogger = 'my-ruleInput';
@@ -127,8 +123,6 @@ test.before(async () => {
     payload: get(item, 'payload', {}),
     definition: workflowDefinition,
   }));
-  sandbox.stub(Provider.prototype, 'get').callsFake((providerArg) => providerArg);
-  sandbox.stub(Collection.prototype, 'get').callsFake((collectionArg) => collectionArg);
 });
 
 test.beforeEach(async (t) => {

@@ -77,6 +77,7 @@ export const fakeCollectionRecordFactory = (
     regex: 'fake-regex',
     sampleFileName: 'file.txt',
   }]),
+  meta: { foo: 'bar' },
   ...params,
 });
 

@@ -345,7 +345,7 @@ describe('Ingesting from PDR', () => {
 
         // SfSnsReport lambda is used in the workflow multiple times, apparently, only the first output
         it('has expected output message', () => {
-          if (beforeAllFailed) fail('beforeAll() failed');
+          if (beforeAllFailed) fail(beforeAllFailed);
           else if (lambdaOutput) {
             // Sometimes PDR ingestion completes before this step is reached, so it is never invoked
             // and there is no Lambda output to check.
@@ -425,7 +425,7 @@ describe('Ingesting from PDR', () => {
               'completed'
             );
 
-            ingestGranuleExecution = await executionsApiTestUtils.getExecution({
+            ingestGranuleExecution = await getExecution({
               prefix: config.stackName,
               arn: ingestGranuleWorkflowArn,
             });
@@ -439,7 +439,7 @@ describe('Ingesting from PDR', () => {
         it('does not display a parent link', async () => {
           if (beforeAllFailed) fail(beforeAllFailed);
           else {
-            const parsePdrExecution = await executionsApiTestUtils.getExecution({
+            const parsePdrExecution = await getExecution({
               prefix: config.stackName,
               arn: workflowExecution.executionArn,
             });
@@ -464,6 +464,7 @@ describe('Ingesting from PDR', () => {
           } catch (error) {
             console.log(`Error parsing JSON ${executionStatusResponse}`);
             beforeAllFailed = error;
+            throw error;
           }
         });
 

@@ -25,7 +25,6 @@ const assertions = require('../../lib/assertions');
 const stats = rewire('../../endpoints/stats');
 const getType = stats.__get__('getType');
 
-process.env.CollectionsTable = randomId('collectionsTable');
 process.env.GranulesTable = randomId('granulesTable');
 process.env.AccessTokensTable = randomId('accessTokenTable');
 
@@ -42,15 +41,12 @@ process.env.TOKEN_SECRET = randomId('tokensecret');
 const { app } = require('../../app');
 
 let esClient;
-let collectionModel;
 let granuleModel;
 let accessTokenModel;
 let jwtAuthToken;
 
 test.before(async () => {
   // create the tables
-  collectionModel = new models.Collection();
-  await collectionModel.createTable();
 
   granuleModel = new models.Granule();
   await granuleModel.createTable();
@@ -103,7 +99,6 @@ test.before(async () => {
 test.after.always(async () => {
   await Promise.all([
     esClient.indices.delete({ index: esIndex }),
-    collectionModel.deleteTable(),
     granuleModel.deleteTable(),
     await accessTokenModel.deleteTable(),
     s3.recursivelyDeleteS3Bucket(process.env.system_bucket),
