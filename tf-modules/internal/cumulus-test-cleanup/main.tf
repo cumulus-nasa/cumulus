@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 3.14.1"
     }
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 2.1"
+    }
   }
 }
 
@@ -39,7 +43,7 @@ resource "aws_lambda_function" "cumulus_test_cleanup" {
   role          = aws_iam_role.test_cleanup_lambda_role.arn
   handler       = "index.handler"
   runtime       = "nodejs12.x"
-  timeout       = 300
+  timeout       = 900
 
   source_code_hash = filebase64sha256("${path.module}/dist/lambda.zip")
 
@@ -52,7 +56,7 @@ resource "aws_lambda_function" "cumulus_test_cleanup" {
 }
 
 resource "aws_cloudwatch_event_rule" "cumulus_test_cleanup" {
-  name                = "${var.prefix}_cumulus_test_cleanup"
+  name                = "cumulus_test_cleanup"
   schedule_expression = "cron(0 1 * * ? *)"
   tags                = var.tags
 }

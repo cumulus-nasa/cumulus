@@ -40,10 +40,21 @@ data "aws_iam_policy_document" "test_cleanup_policy_document" {
     ]
     resources = ["*"]
   }
+  statement {
+    actions = [
+      "s3:ListAllMyBuckets",
+      "s3:GetBucket*",
+      "s3:GetObject*",
+      "s3:ListBucket*",
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+    ]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "test_cleanup_lambda_role_policy" {
-  name   = "${var.prefix}_test_cleanup_lambda_role_policy"
+  name   = "test_cleanup_lambda_role_policy"
   role   = aws_iam_role.test_cleanup_lambda_role.id
   policy = data.aws_iam_policy_document.test_cleanup_policy_document.json
 }
