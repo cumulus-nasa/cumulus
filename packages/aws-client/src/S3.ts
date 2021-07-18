@@ -718,6 +718,7 @@ export type ListS3ObjectsV2Result = Promise<Object[]>;
 export const listS3ObjectsV2 = async (
   params: AWS.S3.ListObjectsV2Request
 ): ListS3ObjectsV2Result => {
+  console.log('in listS3ObjectsV2');
   // Fetch the first list of objects from S3
   let listObjectsResponse = <ListObjectsV2Output>(
     await s3().listObjectsV2(params).promise()
@@ -736,6 +737,7 @@ export const listS3ObjectsV2 = async (
         ContinuationToken: listObjectsResponse.NextContinuationToken,
       }
     ).promise());
+    console.log('response from listObjectsV2:::', listObjectsResponse);
     discoveredObjects = discoveredObjects.concat(listObjectsResponse.Contents);
   }
 
