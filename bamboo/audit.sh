@@ -16,7 +16,6 @@ fi
 
 if [[ $commit_message_contains_skip_audit_flag = false && $commit_matches_version_tag = false && $SKIP_AUDIT != true ]]; then
   npm install --no-audit
-  npm run install-locks;
   npm run audit;
 else
   >&2 echo "******Skipping audit due to commit message/version tag/env var being present"

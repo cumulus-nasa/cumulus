@@ -1,5 +1,5 @@
 FROM cumuluss/cumulus-build-env:build
 RUN git clone https://github.com/nasa/cumulus && \
-  cd cumulus && npm install --no-package-lock && \
+  cd cumulus && npm install && \
   npx lerna bootstrap --no-ci --force-local --ignore-scripts && \
   rm -Rf ./example/node_modules

@@ -10,12 +10,5 @@
     "packages/api/ecs/async-operation",
     "tasks/*",
     "tf-modules/*"
-  ],
-  "command": {
-    "bootstrap": {
-      "npmClientArgs": [
-        "--no-package-lock"
-      ]
-    }
-  }
+  ]
 }
